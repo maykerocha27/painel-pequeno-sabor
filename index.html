@@ -312,7 +312,7 @@ body.operador .admin-only{display:none!important}
   <section id="v-ajustes" class="view" hidden>
     <div class="panel">
       <h2>Gramagem por lanche</h2>
-      <p class="muted" style="margin:0">Cada frio citado no nome do lanche baixa esta quantidade por unidade recebida. Padrão do Maxiprod: 25 g de cada.</p>
+      <p class="muted" style="margin:0">Cada frio ou pasta citado no nome do lanche baixa esta quantidade por lanche recebido. Padrão: 20 g de cada.</p>
       <div class="scroll"><table id="tb-gramas"></table></div>
     </div>
     <div class="panel" style="margin-top:16px">
@@ -336,9 +336,13 @@ body.operador .admin-only{display:none!important}
 
 <script>
 (() => {
-  const FRIOS = ["Mussarela","Presunto","Peito de Peru","Mortadela","Queijo Prato","Requeijão","Margarina","Salame","Provolone","Cheddar","Peperoni","Cream Cheese"];
+  const FRIOS = ["Mussarela","Presunto","Peito de Peru","Mortadela","Queijo Prato","Requeijão","Salame","Lombo","Parmesão","Provolone","Cheddar","Cream Cheese","Margarina","Peperoni"];
+  const FRIOS_G = [...FRIOS, "Pastas"];
+  // padrão KLE: kg por peça (editável em Ajustes) e 20 g de cada frio/pasta por lanche
+  const PESOS_PADRAO = { "Mortadela":5, "Mussarela":3.5, "Peito de Peru":1, "Presunto":3.5, "Queijo Prato":3, "Salame":0.7, "Lombo":0.8, "Parmesão":3, "Provolone":2.5, "Requeijão":1, "Cream Cheese":1, "Cheddar":1 };
+  const GRAMAS_PADRAO = 20;
   const DIAS = ["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"];
-  const ALIAS = { "Mussarela":["mussarela","mucarela","muzarela","mozarela","mozzarella","mussarelo"], "Presunto":["presunto"], "Peito de Peru":["peito de peru","peito peru"," peru"], "Mortadela":["mortadela"], "Queijo Prato":["queijo prato"," prato"], "Requeijão":["requeijao"], "Margarina":["margarina"], "Salame":["salame"], "Provolone":["provolone"], "Cheddar":["cheddar"], "Peperoni":["peperoni","pepperoni"], "Cream Cheese":["cream cheese"] };
+  const ALIAS = { "Mussarela":["mussarela","mucarela","muzarela","mozarela","mozzarella","mussarelo"], "Presunto":["presunto"], "Peito de Peru":["peito de peru","peito peru"," peru"], "Mortadela":["mortadela"], "Queijo Prato":["queijo prato"," prato"], "Requeijão":["requeijao"], "Margarina":["margarina"], "Salame":["salame"], "Provolone":["provolone"], "Cheddar":["cheddar"], "Peperoni":["peperoni","pepperoni"], "Cream Cheese":["cream cheese"], "Lombo":["lombo"], "Parmesão":["parmesao"] };
   const state = { sb: null, isAdmin: false, sample: null, printBlob: null, printRes: [], prog: [], mov: [], msgs: [], gramas: {}, pesos: {}, modo: "mensagem", msgParsed: null, week: monday(new Date()), view: "semana", canWrite: true, db: null, parsed: [] };
   const $ = s => document.querySelector(s);
   const fmt = (n, d = 0) => (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -349,8 +353,16 @@ body.operador .admin-only{display:none!important}
   function monday(d){ const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x; }
   function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
   const ddmm = d => String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0");
-  const gramasDe = f => state.gramas[f] ?? 25;
-  const friosDoLanche = nome => { const n = norm(nome); return FRIOS.filter(f => n.includes(norm(f))); };
+  const gramasDe = f => (f.startsWith("Pasta") ? state.gramas["Pastas"] : state.gramas[f]) ?? GRAMAS_PADRAO;
+  const friosDoLanche = nome => {
+    const n = " " + norm(nome).replace(/baguete parmesao/g, " ") + " ";   // "Baguete Parmesão" é o pão, não o recheio
+    const achados = FRIOS.filter(f => n.includes(norm(f)));
+    for (const m of n.matchAll(/pasta (de |da |do )?([a-z ]+?)(?= e | com |,| $)/g)){
+      const nomePasta = "Pasta " + (m[1] || "") + m[2].trim().replace(/\b\w/g, c => c.toUpperCase());
+      if (!achados.includes(nomePasta)) achados.push(nomePasta.replace(/\s+/g, " "));
+    }
+    return achados;
+  };
   function toast(msg){ const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2200); }
   function status(msg, kind = "info"){ const s = $("#status"); if (!msg){ s.hidden = true; return; } s.className = "notice " + kind; s.textContent = msg; s.hidden = false; }
   function el(tag, attrs = {}, ...kids){ const e = document.createElement(tag); for (const [k,v] of Object.entries(attrs)){ if (k === "class") e.className = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else if (v !== null && v !== undefined && v !== false) e.setAttribute(k, v === true ? "" : v); } for (const k of kids.flat()) if (k !== null && k !== undefined) e.append(k.nodeType ? k : String(k)); return e; }
@@ -366,7 +378,7 @@ body.operador .admin-only{display:none!important}
     }
     return out;
   }
-  const pesoDe = f => Number(state.pesos[f]) || 0;
+  const pesoDe = f => Number(state.pesos[f]) || PESOS_PADRAO[f] || 0;
   function emPecas(m){ const q = Number(m.qtd ?? m.kg) || 0; const un = m.unidade || (m.kg !== undefined ? "kg" : "peca"); if (un === "peca") return q; const p = pesoDe(m.frio); return p ? q / p : null; }
   function saldos(){
     const tot = { envio:{}, devolucao:{}, ajuste:{}, uso:{} }, semPeso = new Set();
@@ -511,9 +523,9 @@ body.operador .admin-only{display:none!important}
 
   function renderGramas(){
     $("#tb-gramas").replaceChildren(el("thead", {}, el("tr", {}, el("th", {}, "Frio"), el("th", { class:"r" }, "Gramas por lanche"))),
-      el("tbody", {}, FRIOS.map(f => el("tr", {}, el("td", {}, f), el("td", { class:"r" }, el("input", { type:"number", min:"0", step:"1", id:"g-" + slug(f), value: gramasDe(f), style:"width:90px;text-align:right", disabled: !state.canWrite }))))));
+      el("tbody", {}, FRIOS_G.map(f => el("tr", {}, el("td", {}, f === "Pastas" ? "Pastas (qualquer pasta)" : f), el("td", { class:"r" }, el("input", { type:"number", min:"0", step:"1", id:"g-" + slug(f), value: gramasDe(f), style:"width:90px;text-align:right", disabled: !state.canWrite }))))));
     $("#tb-pesos").replaceChildren(el("thead", {}, el("tr", {}, el("th", {}, "Frio"), el("th", { class:"r" }, "Kg por peça"))),
-      el("tbody", {}, FRIOS.map(f => el("tr", {}, el("td", {}, f), el("td", { class:"r" }, el("input", { type:"number", min:"0", step:"0.001", id:"p-" + slug(f), value: state.pesos[f] ?? "", placeholder:"—", style:"width:90px;text-align:right", disabled: !state.canWrite }))))));
+      el("tbody", {}, FRIOS.map(f => el("tr", {}, el("td", {}, f), el("td", { class:"r" }, el("input", { type:"number", min:"0", step:"0.001", id:"p-" + slug(f), value: state.pesos[f] ?? PESOS_PADRAO[f] ?? "", placeholder:"—", style:"width:90px;text-align:right", disabled: !state.canWrite }))))));
     $("#cfg-modo").value = state.modo;
     const sel = $("#fr-frio"); if (!sel.options.length) sel.replaceChildren(...FRIOS.map(f => el("option", { value:f }, f)));
   }
@@ -647,7 +659,7 @@ body.operador .admin-only{display:none!important}
   };
   $("#btn-gramas").onclick = async () => {
     if (!precisaDb()) return;
-    const g = {}, p = {}; for (const f of FRIOS){ const v = Number($("#g-" + slug(f)).value); if (isFinite(v) && v >= 0) g[f] = v; const w = $("#p-" + slug(f)).value; if (w !== "" && Number(w) > 0) p[f] = Number(w); }
+    const g = {}, p = {}; for (const f of FRIOS_G){ const v = Number($("#g-" + slug(f)).value); if (isFinite(v) && v >= 0) g[f] = v; } for (const f of FRIOS){ const w = $("#p-" + slug(f)).value; if (w !== "" && Number(w) > 0) p[f] = Number(w); }
     try { await state.db.doc("config/parametros").set({ gramas: g, pesos: p, modo: $("#cfg-modo").value }); toast("Ajustes salvos"); } catch(e){ status("Não salvou (" + (e.code||"erro") + ").", "bad"); }
   };
   // ---------- print do WhatsApp ----------
