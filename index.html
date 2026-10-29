@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Controle Pequeno Sabor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: barra superior com semana + abas; conteúdo em largura única (máx 1080px), tabelas por dia como "romaneio". */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --surface-2:#e9edf1; --line:#d3dae1;
+  --fg:#18232d; --muted:#5b6a78;
+  --accent:#c2415d;        /* rosa presunto */
+  --accent-soft:#f8e3e8;
+  --cold:#1f6f8b;          /* cadeia fria */
+  --ok:#2c7a4b; --ok-soft:#dff1e6;
+  --warn:#9a6a00; --warn-soft:#fbefcf;
+  --bad:#b3261e; --bad-soft:#fbe0de;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11171d; --surface:#18212a; --surface-2:#202b36; --line:#2e3b48;
+  --fg:#e5ebf0; --muted:#94a3b1; --accent:#ec7d95; --accent-soft:#3a1f27; --cold:#5fb4d3;
+  --ok:#6fcf97; --ok-soft:#183324; --warn:#e8b94a; --warn-soft:#352a10; --bad:#f28b82; --bad-soft:#3b1a18; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11171d; --surface:#18212a; --surface-2:#202b36; --line:#2e3b48;
+  --fg:#e5ebf0; --muted:#94a3b1; --accent:#ec7d95; --accent-soft:#3a1f27; --cold:#5fb4d3;
+  --ok:#6fcf97; --ok-soft:#183324; --warn:#e8b94a; --warn-soft:#352a10; --bad:#f28b82; --bad-soft:#3b1a18; color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{color-scheme:light}
+body{margin:0}
+img{max-width:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.45}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;letter-spacing:.01em;margin:0;text-wrap:balance}
+h1{font-size:30px;line-height:1.05}
+h2{font-size:21px}
+h3{font-size:17px;text-transform:uppercase;letter-spacing:.06em}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.eyebrow{font-family:var(--f-display);font-weight:600;text-transform:uppercase;letter-spacing:.12em;font-size:13px;color:var(--accent)}
+
+header.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.weekbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.weekbar .lbl{font-family:var(--f-display);font-size:20px;font-weight:600;min-width:180px;text-align:center}
+button,.btn{font:inherit;font-weight:500;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:6px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--cold);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+button.danger{color:var(--bad)}
+button:disabled{opacity:.5;cursor:not-allowed}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 8px;min-width:0}
+textarea{width:100%;font-family:var(--f-mono);font-size:13px}
+
+nav.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav.tabs a{font-family:var(--f-display);font-size:17px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:8px 14px;color:var(--muted);text-decoration:none;border-bottom:3px solid transparent;white-space:nowrap}
+nav.tabs a[aria-current="page"]{color:var(--fg);border-bottom-color:var(--accent)}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.kpi .k{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.kpi .v{font-family:var(--f-mono);font-size:24px;font-weight:500}
+.kpi .s{font-size:12px;color:var(--muted)}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+td.r,th.r{text-align:right}
+tr.day td{background:var(--surface-2);font-family:var(--f-display);font-size:16px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+tr.day td .num{font-size:14px;font-weight:500;letter-spacing:0;text-transform:none}
+td input.rec{width:90px;text-align:right;font-family:var(--f-mono)}
+.chip{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.chip.idle{background:var(--surface-2);color:var(--muted)}
+.frio-tags{font-size:12px;color:var(--muted)}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+.form-row{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+.form-row label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
+.notice{border-radius:8px;padding:10px 12px;font-size:13px}
+.notice.info{background:var(--surface-2)}
+.notice.bad{background:var(--bad-soft);color:var(--bad)}
+.notice.ok{background:var(--ok-soft);color:var(--ok)}
+.empty{padding:28px 12px;text-align:center;color:var(--muted)}
+.saldo-neg{color:var(--bad);font-weight:600}
+.saldo-low{color:var(--warn);font-weight:600}
+.dropzone{border:2px dashed var(--line);border-radius:8px;padding:18px;text-align:center;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;gap:8px;align-items:center}
+.dropzone:hover,.dropzone.over{border-color:var(--cold);color:var(--fg)}
+.dropzone img{max-height:260px;max-width:100%;border-radius:6px;border:1px solid var(--line)}
+.print-row{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line)}
+.print-row input[type=checkbox]{margin-top:3px;width:18px;height:18px}
+.toast{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:6px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+#login{min-height:80vh;display:grid;place-items:center}
+#login form{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px;display:flex;flex-direction:column;gap:12px;width:min(360px,100%)}
+#login label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.userbox{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+body.operador .admin-only{display:none!important}
+</style>
+</head>
+<body>
+<section id="login" hidden>
+  <form id="login-form">
+    <div class="eyebrow">Kit Lanche Express · Pequeno Sabor</div>
+    <h1>Entrar</h1>
+    <label>E-mail<input id="lg-email" type="email" autocomplete="username" required></label>
+    <label>Senha<input id="lg-senha" type="password" autocomplete="current-password" required></label>
+    <button class="primary" id="lg-btn" type="submit">Entrar</button>
+    <div id="lg-msg" class="notice bad" hidden></div>
+  </form>
+</section>
+
+<div class="wrap" id="app" hidden>
+  <header class="top">
+    <div>
+      <div class="eyebrow">Fornecedor terceirizado · Pequeno Sabor</div>
+      <h1>Programado × recebido e frios</h1>
+    </div>
+    <div class="weekbar">
+      <button id="wk-prev" aria-label="Semana anterior">◀</button>
+      <span class="lbl" id="wk-label">—</span>
+      <button id="wk-next" aria-label="Próxima semana">▶</button>
+      <button id="wk-today" class="ghost">Esta semana</button>
+    </div>
+    <div class="userbox"><span id="user-lbl"></span><button id="btn-sair" class="ghost">Sair</button></div>
+  </header>
+
+  <div id="status" class="notice info" hidden></div>
+
+  <nav class="tabs" aria-label="Seções">
+    <a href="#semana" data-view="semana">Semana</a>
+    <a href="#programacao" data-view="programacao" class="admin-only">Programação</a>
+    <a href="#frios" data-view="frios">Frios</a>
+    <a href="#ajustes" data-view="ajustes" class="admin-only">Ajustes</a>
+  </nav>
+
+  <!-- SEMANA -->
+  <section id="v-semana" class="view">
+    <div class="kpis" id="kpis"></div>
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <h2>Lanches da semana</h2>
+        <span class="muted">Digite o recebido; salva ao sair do campo.</span>
+      </div>
+      <div class="scroll"><table id="tb-semana"></table></div>
+    </div>
+  </section>
+
+  <!-- PROGRAMAÇÃO -->
+  <section id="v-programacao" class="view" hidden>
+    <div class="grid2">
+      <div class="panel">
+        <h2>Colar do Excel</h2>
+        <p class="muted" style="margin:0">Copie a programação (dias + lanche + quantidade) e cole aqui. Ela entra na semana selecionada no topo.</p>
+        <textarea id="paste" rows="12" placeholder="SEGUNDA&#10;Baguete Simples com Presunto e Mussarela	4.500&#10;TERÇA&#10;Baguete Simples com Margarina	75"></textarea>
+        <div class="form-row">
+          <button id="btn-parse">Conferir</button>
+          <button id="btn-import" class="primary" disabled>Lançar na semana</button>
+        </div>
+        <div id="parse-out"></div>
+      </div>
+      <div class="panel">
+        <h2>Adicionar linha</h2>
+        <div class="form-row">
+          <label>Data<input type="date" id="add-data"></label>
+          <label style="flex:1 1 220px">Lanche<input id="add-lanche" list="dl-lanches" placeholder="Baguete Simples com Presunto e Mussarela"></label>
+          <label>Qtd<input id="add-qtd" type="number" min="0" step="1" style="width:90px"></label>
+          <button id="btn-add" class="primary">Adicionar</button>
+        </div>
+        <datalist id="dl-lanches"></datalist>
+        <hr style="border:0;border-top:1px solid var(--line);width:100%">
+        <h3>Limpar semana</h3>
+        <p class="muted" style="margin:0">Apaga programação e recebimentos da semana selecionada.</p>
+        <div class="form-row">
+          <button id="btn-clear" class="danger">Limpar semana</button>
+          <button id="btn-clear-ok" class="primary" hidden>Confirmar exclusão</button>
+          <button id="btn-clear-no" class="ghost" hidden>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FRIOS -->
+  <section id="v-frios" class="view" hidden>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Saldo de frios no Pequeno Sabor</h2>
+        <span class="muted" id="saldo-regra">Saldo em peças = enviado − devolvido ± ajuste − usado</span>
+      </div>
+      <div class="scroll"><table id="tb-saldo"></table></div>
+    </div>
+    <div class="panel" style="margin-top:16px" id="print-panel">
+      <div class="panel-head">
+        <h2>Print do WhatsApp</h2>
+        <span class="muted">Cole o print da conversa (Ctrl+V). O painel lê o uso de frios e você confere antes de lançar.</span>
+      </div>
+      <div class="dropzone" id="print-zone" tabindex="0" role="button" aria-label="Colar ou escolher print">
+        <span id="print-hint">Clique aqui e cole o print (Ctrl+V), arraste a imagem ou clique para escolher o arquivo</span>
+        <img id="print-img" alt="Print colado" hidden>
+      </div>
+      <input type="file" id="print-file" accept="image/png,image/jpeg,image/webp" hidden>
+      <div class="form-row">
+        <label>Data das mensagens<input type="date" id="print-data"></label>
+        <button id="btn-print" class="primary" disabled>Ler print</button>
+        <button id="btn-print-clear" class="ghost" hidden>Trocar print</button>
+      </div>
+      <div id="print-out"></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <h2>Mensagens da Laís</h2>
+        <span class="muted">Mensagens lidas dos prints ou coladas aqui.</span>
+      </div>
+      <div class="form-row">
+        <label style="flex:1 1 320px">Colar mensagem<textarea id="msg-txt" rows="2" placeholder="usamos 10 peças de mussarela e 6 de presunto"></textarea></label>
+        <label>Data<input type="date" id="msg-data"></label>
+        <button id="btn-msg">Conferir</button>
+      </div>
+      <div id="msg-out"></div>
+      <div class="scroll"><table id="tb-msgs"></table></div>
+    </div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="panel">
+        <h2>Lançar movimento</h2>
+        <div class="form-row">
+          <label>Data<input type="date" id="fr-data"></label>
+          <label>Frio<select id="fr-frio"></select></label>
+          <label>Qtd<input id="fr-qtd" type="number" step="0.001" style="width:90px"></label>
+          <label>Unidade<select id="fr-un"><option value="peca">peças</option><option value="kg">kg</option></select></label>
+          <label>Tipo<select id="fr-tipo">
+            <option value="envio" class="admin-only">Envio</option>
+            <option value="uso" selected>Uso informado (baixa)</option>
+            <option value="devolucao" class="admin-only">Devolução</option>
+            <option value="ajuste" class="admin-only">Ajuste de contagem (+/−)</option>
+          </select></label>
+        </div>
+        <div class="form-row">
+          <label style="flex:1 1 200px">Obs. (NF, motorista…)<input id="fr-obs"></label>
+          <button id="btn-frio" class="primary">Lançar</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Movimentos</h2>
+        <div class="scroll"><table id="tb-mov"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AJUSTES -->
+  <section id="v-ajustes" class="view" hidden>
+    <div class="panel">
+      <h2>Gramagem por lanche</h2>
+      <p class="muted" style="margin:0">Cada frio citado no nome do lanche baixa esta quantidade por unidade recebida. Padrão do Maxiprod: 25 g de cada.</p>
+      <div class="scroll"><table id="tb-gramas"></table></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h2>Peso da peça e forma de baixa</h2>
+      <p class="muted" style="margin:0">Peso médio de cada peça, para converter kg ↔ peças e comparar o uso informado com o consumo teórico dos lanches.</p>
+      <div class="scroll"><table id="tb-pesos"></table></div>
+      <div class="form-row">
+        <label>Baixa do saldo por<select id="cfg-modo">
+          <option value="mensagem">Uso informado pela Laís</option>
+          <option value="teorico">Lanches recebidos × gramagem</option>
+        </select></label>
+      </div>
+    </div>
+    <div class="form-row" style="margin-top:16px"><button id="btn-gramas" class="primary">Salvar ajustes</button></div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+
+<script>
+(() => {
+  const FRIOS = ["Mussarela","Presunto","Peito de Peru","Mortadela","Queijo Prato","Requeijão","Margarina","Salame","Provolone","Cheddar","Peperoni","Cream Cheese"];
+  const DIAS = ["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"];
+  const ALIAS = { "Mussarela":["mussarela","mucarela","muzarela","mozarela","mozzarella","mussarelo"], "Presunto":["presunto"], "Peito de Peru":["peito de peru","peito peru"," peru"], "Mortadela":["mortadela"], "Queijo Prato":["queijo prato"," prato"], "Requeijão":["requeijao"], "Margarina":["margarina"], "Salame":["salame"], "Provolone":["provolone"], "Cheddar":["cheddar"], "Peperoni":["peperoni","pepperoni"], "Cream Cheese":["cream cheese"] };
+  const state = { sb: null, isAdmin: false, sample: null, printBlob: null, printRes: [], prog: [], mov: [], msgs: [], gramas: {}, pesos: {}, modo: "mensagem", msgParsed: null, week: monday(new Date()), view: "semana", canWrite: true, db: null, parsed: [] };
+  const $ = s => document.querySelector(s);
+  const fmt = (n, d = 0) => (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const norm = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  const slug = s => norm(s).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 120);
+  function iso(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  function parseIso(s){ const [y,m,d] = s.split("-").map(Number); return new Date(y, m-1, d); }
+  function monday(d){ const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x; }
+  function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
+  const ddmm = d => String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0");
+  const gramasDe = f => state.gramas[f] ?? 25;
+  const friosDoLanche = nome => { const n = norm(nome); return FRIOS.filter(f => n.includes(norm(f))); };
+  function toast(msg){ const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2200); }
+  function status(msg, kind = "info"){ const s = $("#status"); if (!msg){ s.hidden = true; return; } s.className = "notice " + kind; s.textContent = msg; s.hidden = false; }
+  function el(tag, attrs = {}, ...kids){ const e = document.createElement(tag); for (const [k,v] of Object.entries(attrs)){ if (k === "class") e.className = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else if (v !== null && v !== undefined && v !== false) e.setAttribute(k, v === true ? "" : v); } for (const k of kids.flat()) if (k !== null && k !== undefined) e.append(k.nodeType ? k : String(k)); return e; }
+
+  // ---------- cálculos ----------
+  function semanaDocs(){ const a = iso(state.week), b = iso(addDays(state.week, 7)); return state.prog.filter(p => p.data >= a && p.data < b); }
+  function consumoPorFrio(docs, campo){
+    const out = {};
+    for (const p of docs){
+      const q = campo === "recebido" ? (Number(p.recebido) || 0) : Math.max(0, (Number(p.qtd)||0) - (Number(p.recebido)||0));
+      if (!q) continue;
+      for (const f of friosDoLanche(p.lanche)) out[f] = (out[f]||0) + q * gramasDe(f) / 1000;
+    }
+    return out;
+  }
+  const pesoDe = f => Number(state.pesos[f]) || 0;
+  function emPecas(m){ const q = Number(m.qtd ?? m.kg) || 0; const un = m.unidade || (m.kg !== undefined ? "kg" : "peca"); if (un === "peca") return q; const p = pesoDe(m.frio); return p ? q / p : null; }
+  function saldos(){
+    const tot = { envio:{}, devolucao:{}, ajuste:{}, uso:{} }, semPeso = new Set();
+    for (const m of state.mov){ const pc = emPecas(m); if (pc === null){ semPeso.add(m.frio); continue; } const t = tot[m.tipo] || tot.envio; t[m.frio] = (t[m.frio]||0) + pc; }
+    const teoKg = consumoPorFrio(state.prog, "recebido");
+    const necKg = consumoPorFrio(semanaDocs(), "pendente");
+    const kg2pc = (f, kg) => pesoDe(f) ? kg / pesoDe(f) : null;
+    const nomes = [...new Set([...Object.values(tot).flatMap(Object.keys), ...Object.keys(teoKg), ...Object.keys(necKg)])].sort((a,b) => FRIOS.indexOf(a) - FRIOS.indexOf(b));
+    return nomes.map(f => {
+      const env = tot.envio[f]||0, dev = tot.devolucao[f]||0, aj = tot.ajuste[f]||0, uso = tot.uso[f]||0;
+      const teo = kg2pc(f, teoKg[f]||0), nec = kg2pc(f, necKg[f]||0);
+      const baixa = state.modo === "teorico" ? (teo ?? 0) : uso;
+      const saldo = env - dev + aj - baixa;
+      return { frio:f, env, dev, aj, uso, teo, teoKg: teoKg[f]||0, dif: teo === null ? null : uso - teo, saldo, nec, necKg: necKg[f]||0, enviar: nec === null ? null : Math.max(0, nec - Math.max(0, saldo)), semPeso: semPeso.has(f) || !pesoDe(f) };
+    });
+  }
+
+  // ---------- leitura de mensagem ----------
+  function lerMensagem(txt){
+    const t = " " + norm(txt).replace(/[^a-z0-9.,\s]/g, " ").replace(/\s+/g, " ") + " ";
+    const itens = [];
+    for (const [frio, als] of Object.entries(ALIAS)){
+      for (const a of als){
+        let i = t.indexOf(a);
+        while (i >= 0){
+          const antes = t.slice(Math.max(0, i - 30), i);
+          const m = antes.match(/(\d+(?:[.,]\d+)?)\s*(pecas?|pcs?|pc|unidades?|und|un|kg|kilos?|quilos?)?\s*(?:de\s*)?(?:queijo\s*)?$/);
+          const depois = t.slice(i + a.length, i + a.length + 25).match(/^\s*[:=-]?\s*(\d+(?:[.,]\d+)?)\s*(pecas?|pcs?|pc|unidades?|und|un|kg|kilos?|quilos?)?(?![a-z])/);
+          const hit = m || depois;
+          if (hit && !itens.some(x => x.frio === frio)){ const kg = /^(kg|kilo|quilo)/.test(hit[2]||""); itens.push({ frio, qtd: Number(hit[1].replace(",", ".")), unidade: kg ? "kg" : "peca" }); }
+          i = t.indexOf(a, i + a.length);
+        }
+      }
+    }
+    return itens;
+  }
+
+  // ---------- render ----------
+  function render(){
+    $("#wk-label").textContent = "Semana " + ddmm(state.week) + " – " + ddmm(addDays(state.week, 6));
+    document.querySelectorAll(".view").forEach(v => v.hidden = v.id !== "v-" + state.view);
+    document.querySelectorAll("nav.tabs a").forEach(a => { if (a.dataset.view === state.view) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+    renderSemana(); renderSaldo(); renderMov(); renderMsgs(); renderGramas();
+    const dl = $("#dl-lanches"); dl.replaceChildren(...[...new Set(state.prog.map(p => p.lanche))].sort().map(n => el("option", { value:n })));
+  }
+
+  function renderSemana(){
+    const docs = semanaDocs();
+    const prog = docs.reduce((s,p) => s + (Number(p.qtd)||0), 0);
+    const lanc = docs.filter(p => p.recebido !== null && p.recebido !== undefined && p.recebido !== "");
+    const rec = lanc.reduce((s,p) => s + (Number(p.recebido)||0), 0);
+    const progLanc = lanc.reduce((s,p) => s + (Number(p.qtd)||0), 0);
+    const cons = Object.values(consumoPorFrio(docs, "recebido")).reduce((a,b) => a+b, 0);
+    const sal = saldos(); const negativos = sal.filter(s => s.saldo < -0.0005).length; const enviar = sal.reduce((a,s) => a + (s.enviar || 0), 0);
+    const atend = progLanc ? rec / progLanc : null;
+    const k = (t, v, s, cls = "") => el("div", { class:"kpi" }, el("span", { class:"k" }, t), el("span", { class:"v num " + cls }, v), el("span", { class:"s" }, s));
+    $("#kpis").replaceChildren(
+      k("Programado", fmt(prog), docs.length + " linhas na semana"),
+      k("Recebido", fmt(rec), lanc.length + " de " + docs.length + " linhas lançadas"),
+      k("Atendimento", atend === null ? "—" : fmt(atend*100,1) + "%", "sobre as linhas já lançadas", atend !== null && atend < 0.98 ? "saldo-low" : ""),
+      k("Frios teóricos", fmt(cons,2) + " kg", "pelos lanches recebidos na semana"),
+      k("Enviar p/ completar", fmt(Math.ceil(enviar)) + " pç", negativos ? negativos + " frio(s) com saldo negativo" : "falta da programação pendente", negativos ? "saldo-neg" : "")
+    );
+
+    const tb = $("#tb-semana");
+    if (!docs.length){ tb.replaceChildren(el("tr", {}, el("td", { class:"empty" }, "Nenhuma programação nesta semana. Cole a programação do Excel na aba Programação."))); return; }
+    const head = el("tr", {}, el("th", {}, "Lanche"), el("th", { class:"r" }, "Programado"), el("th", { class:"r" }, "Recebido"), el("th", { class:"r" }, "Diferença"), el("th", {}, "Situação"));
+    const rows = [el("thead", {}, head)]; const body = el("tbody");
+    const hoje = iso(new Date());
+    for (let i = 0; i < 7; i++){
+      const d = iso(addDays(state.week, i)); const doDia = docs.filter(p => p.data === d).sort((a,b) => a.lanche.localeCompare(b.lanche));
+      if (!doDia.length) continue;
+      const tp = doDia.reduce((s,p) => s + (Number(p.qtd)||0), 0), tr = doDia.reduce((s,p) => s + (Number(p.recebido)||0), 0);
+      const btnTudo = el("button", { class:"ghost admin-only", disabled: !state.isAdmin, onclick: () => receberTudo(doDia) }, "Recebido = programado");
+      body.append(el("tr", { class:"day" }, el("td", {}, DIAS[i] + " " + ddmm(addDays(state.week, i)), " ", btnTudo), el("td", { class:"r" }, el("span", { class:"num" }, fmt(tp))), el("td", { class:"r" }, el("span", { class:"num" }, fmt(tr))), el("td", { colspan:2 })));
+      for (const p of doDia){
+        const temRec = p.recebido !== null && p.recebido !== undefined && p.recebido !== "";
+        const dif = temRec ? (Number(p.recebido)||0) - (Number(p.qtd)||0) : null;
+        let chip;
+        if (!temRec) chip = el("span", { class:"chip " + (d < hoje ? "warn" : "idle") }, d < hoje ? "Sem lançamento" : "Aguardando");
+        else if (dif === 0) chip = el("span", { class:"chip ok" }, "OK");
+        else if (dif < 0) chip = el("span", { class:"chip bad" }, "Faltou " + fmt(-dif));
+        else chip = el("span", { class:"chip warn" }, "Veio a mais " + fmt(dif));
+        const inp = el("input", { class:"rec", type:"number", min:"0", step:"1", id:"rec-" + p.id, "aria-label":"Recebido " + p.lanche, value: temRec ? p.recebido : "", disabled: !state.isAdmin });
+        inp.addEventListener("change", () => salvarRecebido(p, inp.value));
+        const fr = friosDoLanche(p.lanche);
+        body.append(el("tr", {},
+          el("td", {}, p.lanche, el("div", { class:"frio-tags" }, fr.length ? fr.join(" · ") : "nenhum frio reconhecido no nome")),
+          el("td", { class:"r num" }, fmt(p.qtd)), el("td", { class:"r" }, inp),
+          el("td", { class:"r num" + (dif < 0 ? " saldo-neg" : "") }, dif === null ? "—" : (dif > 0 ? "+" : "") + fmt(dif)),
+          el("td", {}, chip)));
+      }
+    }
+    rows.push(body); tb.replaceChildren(...rows);
+  }
+
+  function renderSaldo(){
+    $("#saldo-regra").textContent = state.modo === "teorico" ? "Saldo em peças = enviado − devolvido ± ajuste − consumo teórico dos lanches" : "Saldo em peças = enviado − devolvido ± ajuste − usado (informado pela Laís)";
+    const tb = $("#tb-saldo"); const s = saldos();
+    if (!s.length){ tb.replaceChildren(el("tr", {}, el("td", { class:"empty" }, "Sem movimentos ainda. Lance o primeiro envio de frios abaixo."))); return; }
+    const th = (t, r) => el("th", { class: r ? "r" : "" }, t);
+    const n = (v, d = 1) => v === null ? "—" : fmt(v, d);
+    const body = el("tbody", {}, s.map(x => el("tr", {},
+      el("td", {}, x.frio, x.semPeso ? el("div", { class:"frio-tags" }, "sem peso da peça") : null),
+      el("td", { class:"r num" }, n(x.env)), el("td", { class:"r num" }, n(x.dev)), el("td", { class:"r num" }, n(x.aj)),
+      el("td", { class:"r num" }, n(x.uso)),
+      el("td", { class:"r num" }, x.teo === null ? fmt(x.teoKg, 2) + " kg" : n(x.teo)),
+      el("td", { class:"r num" + (x.dif !== null && x.dif > 0.5 ? " saldo-low" : "") }, x.dif === null ? "—" : (x.dif > 0 ? "+" : "") + fmt(x.dif, 1)),
+      el("td", { class:"r num " + (x.saldo < -0.05 ? "saldo-neg" : x.nec !== null && x.saldo < x.nec ? "saldo-low" : "") }, fmt(x.saldo, 1)),
+      el("td", { class:"r num" }, x.nec === null ? fmt(x.necKg, 2) + " kg" : n(x.nec)),
+      el("td", { class:"r num" + (x.enviar > 0 ? " saldo-low" : "") }, x.enviar === null ? "—" : x.enviar > 0 ? fmt(Math.ceil(x.enviar), 0) : "—"))));
+    tb.replaceChildren(el("thead", {}, el("tr", {}, th("Frio"), th("Enviado",1), th("Devolvido",1), th("Ajuste",1), th("Usado (Laís)",1), th("Teórico lanches",1), th("Usado − teórico",1), th("Saldo",1), th("Falta da semana",1), th("Enviar",1))), body);
+  }
+
+  function renderMov(){
+    const tb = $("#tb-mov"); const list = [...state.mov].sort((a,b) => (b.data||"").localeCompare(a.data||"")).slice(0, 80);
+    if (!list.length){ tb.replaceChildren(el("tr", {}, el("td", { class:"empty" }, "Nenhum movimento lançado."))); return; }
+    const nomeTipo = { envio:"Envio", devolucao:"Devolução", ajuste:"Ajuste", uso:"Uso informado" };
+    tb.replaceChildren(el("thead", {}, el("tr", {}, el("th", {}, "Data"), el("th", {}, "Frio"), el("th", {}, "Tipo"), el("th", { class:"r" }, "Qtd"), el("th", {}, "Obs."), el("th", {}))),
+      el("tbody", {}, list.map(m => { const b = el("button", { class:"ghost danger admin-only", disabled: !state.isAdmin }, "Excluir");
+        b.addEventListener("click", () => { if (b.dataset.armed){ excluirMov(m); } else { b.dataset.armed = "1"; b.textContent = "Confirmar"; setTimeout(() => { delete b.dataset.armed; b.textContent = "Excluir"; }, 3000); } });
+        const un = m.unidade || (m.kg !== undefined ? "kg" : "peca");
+        return el("tr", {}, el("td", { class:"num" }, ddmm(parseIso(m.data))), el("td", {}, m.frio), el("td", {}, nomeTipo[m.tipo] || m.tipo), el("td", { class:"r num" }, fmt(m.qtd ?? m.kg, un === "kg" ? 3 : 0) + (un === "kg" ? " kg" : " pç")), el("td", { class:"muted" }, m.obs || ""), el("td", {}, b)); })));
+  }
+
+  function renderMsgs(){
+    const tb = $("#tb-msgs"); const list = [...state.msgs].sort((a,b) => ((b.data||"") + (b.hora||"")).localeCompare((a.data||"") + (a.hora||""))).slice(0, 40);
+    if (!list.length){ tb.replaceChildren(el("tr", {}, el("td", { class:"empty" }, "Nenhuma mensagem lida ainda."))); return; }
+    const chip = { lancada:["ok","Lançada"], revisar:["warn","Revisar"], ignorada:["idle","Ignorada"] };
+    tb.replaceChildren(el("thead", {}, el("tr", {}, el("th", {}, "Quando"), el("th", {}, "Mensagem"), el("th", {}, "Leitura"), el("th", {}, "Situação"), el("th", {}))),
+      el("tbody", {}, list.map(m => {
+        const itens = (m.itens || []).map(i => fmt(i.qtd, i.unidade === "kg" ? 3 : 0) + (i.unidade === "kg" ? " kg " : " pç ") + i.frio).join(" · ") || "—";
+        const [c, l] = chip[m.status] || ["idle", m.status];
+        const acoes = el("td", {});
+        if (m.status === "revisar" && state.canWrite){
+          if ((m.itens||[]).length) acoes.append(el("button", { class:"primary", onclick: () => lancarMsg(m) }, "Lançar"), " ");
+          acoes.append(el("button", { class:"ghost", onclick: () => state.db.collection("mensagens").doc(m.id).update({ status:"ignorada" }) }, "Ignorar"));
+        }
+        return el("tr", {}, el("td", { class:"num" }, ddmm(parseIso(m.data)) + (m.hora ? " " + m.hora : "")), el("td", {}, el("div", {}, m.texto || ""), el("div", { class:"frio-tags" }, (m.autor || "") + (m.motivo ? " · " + m.motivo : ""))), el("td", {}, itens), el("td", {}, el("span", { class:"chip " + c }, l)), acoes);
+      })));
+  }
+
+  function renderGramas(){
+    $("#tb-gramas").replaceChildren(el("thead", {}, el("tr", {}, el("th", {}, "Frio"), el("th", { class:"r" }, "Gramas por lanche"))),
+      el("tbody", {}, FRIOS.map(f => el("tr", {}, el("td", {}, f), el("td", { class:"r" }, el("input", { type:"number", min:"0", step:"1", id:"g-" + slug(f), value: gramasDe(f), style:"width:90px;text-align:right", disabled: !state.canWrite }))))));
+    $("#tb-pesos").replaceChildren(el("thead", {}, el("tr", {}, el("th", {}, "Frio"), el("th", { class:"r" }, "Kg por peça"))),
+      el("tbody", {}, FRIOS.map(f => el("tr", {}, el("td", {}, f), el("td", { class:"r" }, el("input", { type:"number", min:"0", step:"0.001", id:"p-" + slug(f), value: state.pesos[f] ?? "", placeholder:"—", style:"width:90px;text-align:right", disabled: !state.canWrite }))))));
+    $("#cfg-modo").value = state.modo;
+    const sel = $("#fr-frio"); if (!sel.options.length) sel.replaceChildren(...FRIOS.map(f => el("option", { value:f }, f)));
+  }
+
+  // ---------- escrita ----------
+  function precisaDb(){ if (!state.db){ status("Sem conexão com o banco. Recarregue a página.", "bad"); return false; } return true; }
+  async function salvarRecebido(p, valor){
+    if (!precisaDb()) return;
+    const v = valor === "" ? null : Math.max(0, Math.round(Number(valor)));
+    try { await state.db.collection("programacao").doc(p.id).update({ recebido: v }); toast("Recebido salvo"); }
+    catch (e){ status("Não salvou o recebido (" + (e.code || "erro") + "). Tente de novo.", "bad"); }
+  }
+  async function receberTudo(lista){
+    if (!precisaDb()) return;
+    for (const p of lista){ if (p.recebido === null || p.recebido === undefined || p.recebido === "") { try { await state.db.collection("programacao").doc(p.id).update({ recebido: Number(p.qtd)||0 }); } catch(e){ status("Falhou em " + p.lanche, "bad"); return; } } }
+    toast("Dia lançado conforme programado");
+  }
+  async function gravarLinha(data, lanche, qtd){
+    const id = data + "_" + slug(lanche);
+    const ex = state.prog.find(p => p.id === id);
+    const ref = state.db.collection("programacao").doc(id);
+    if (ex) await ref.update({ qtd, lanche }); else await ref.set({ data, lanche, qtd, recebido: null });
+  }
+  async function lancarMsg(m){
+    if (!precisaDb()) return;
+    try {
+      for (const i of m.itens) await state.db.collection("frios").add({ data: m.data, frio: i.frio, qtd: i.qtd, unidade: i.unidade, tipo: "uso", obs: "WhatsApp " + (m.autor || "") + (m.hora ? " " + m.hora : ""), origem: "mensagem", msgId: m.id });
+      await state.db.collection("mensagens").doc(m.id).update({ status: "lancada" });
+      toast("Baixa lançada");
+    } catch(e){ status("Não lançou (" + (e.code||"erro") + ").", "bad"); }
+  }
+  async function excluirMov(m){ if (!precisaDb()) return; try { await state.db.collection("frios").doc(m.id).delete(); toast("Movimento excluído"); } catch(e){ status("Não excluiu (" + (e.code||"erro") + ").", "bad"); } }
+
+  // ---------- colar do Excel ----------
+  function parsePaste(txt){
+    const out = {}; const avisos = []; let dia = null;
+    const mapa = { segunda:0, terca:1, quarta:2, quinta:3, sexta:4, sabado:5, domingo:6 };
+    for (const raw of txt.split(/\r?\n/)){
+      const linha = raw.replace(/ /g, " ").trim(); if (!linha) continue;
+      const n = norm(linha.replace(/\t/g, " ")).replace(/-feira/, "");
+      const chave = Object.keys(mapa).find(k => n === k || n.startsWith(k + " ") && !/\d/.test(n));
+      if (chave){ dia = mapa[chave]; continue; }
+      if (n.startsWith("segue") || n.startsWith("programa")) continue;
+      let nome, qtdTxt;
+      const cells = linha.split("\t").map(c => c.trim()).filter(Boolean);
+      if (cells.length >= 2){ nome = cells[0]; qtdTxt = cells[cells.length-1]; }
+      else { const m = linha.match(/^(.*?)\s+([\d.,]+)$/); if (m){ nome = m[1]; qtdTxt = m[2]; } }
+      if (!nome || !qtdTxt){ avisos.push("Ignorada: " + linha); continue; }
+      const qtd = Number(qtdTxt.replace(/\./g, "").replace(",", "."));
+      if (!isFinite(qtd)){ avisos.push("Quantidade inválida: " + linha); continue; }
+      if (dia === null){ avisos.push("Sem dia definido antes de: " + nome); continue; }
+      const data = iso(addDays(state.week, dia)); const k = data + "|" + norm(nome);
+      if (out[k]) out[k].qtd += qtd; else out[k] = { data, lanche: nome.replace(/\s+/g, " ").trim(), qtd };
+    }
+    return { linhas: Object.values(out), avisos };
+  }
+
+  // ---------- eventos ----------
+  $("#wk-prev").onclick = () => { state.week = addDays(state.week, -7); render(); };
+  $("#wk-next").onclick = () => { state.week = addDays(state.week, 7); render(); };
+  $("#wk-today").onclick = () => { state.week = monday(new Date()); render(); };
+  $("#btn-parse").onclick = () => {
+    const r = parsePaste($("#paste").value); state.parsed = r.linhas;
+    const tot = r.linhas.reduce((s,l) => s + l.qtd, 0);
+    const box = $("#parse-out");
+    const semFrio = r.linhas.filter(l => !friosDoLanche(l.lanche).length).length;
+    box.replaceChildren(
+      el("div", { class: "notice " + (r.linhas.length ? "ok" : "bad") }, r.linhas.length ? `${r.linhas.length} linhas, ${fmt(tot)} lanches, semana de ${ddmm(state.week)}.` + (semFrio ? ` ${semFrio} sem frio reconhecido.` : "") : "Nada reconhecido. Cada dia precisa de um título (SEGUNDA, TERÇA…) e cada lanche de uma quantidade."),
+      ...r.avisos.slice(0, 8).map(a => el("div", { class:"muted", style:"font-size:12px" }, a)));
+    $("#btn-import").disabled = !r.linhas.length || !state.canWrite;
+  };
+  $("#btn-import").onclick = async () => {
+    if (!precisaDb() || !state.parsed.length) return;
+    const b = $("#btn-import"); b.disabled = true; b.textContent = "Lançando…";
+    try { for (const l of state.parsed) await gravarLinha(l.data, l.lanche, l.qtd); toast(state.parsed.length + " linhas lançadas"); state.parsed = []; $("#paste").value = ""; $("#parse-out").replaceChildren(); location.hash = "semana"; }
+    catch (e){ status("Parou no meio (" + (e.code||"erro") + "). Confira e lance de novo; linhas já gravadas só são atualizadas.", "bad"); }
+    b.textContent = "Lançar na semana";
+  };
+  $("#btn-add").onclick = async () => {
+    const data = $("#add-data").value, lanche = $("#add-lanche").value.trim(), qtd = Number($("#add-qtd").value);
+    if (!data || !lanche || !(qtd >= 0)){ status("Preencha data, lanche e quantidade.", "bad"); return; }
+    if (!precisaDb()) return;
+    try { await gravarLinha(data, lanche, qtd); status(""); toast("Linha adicionada"); $("#add-lanche").value = ""; $("#add-qtd").value = ""; }
+    catch(e){ status("Não salvou (" + (e.code||"erro") + ").", "bad"); }
+  };
+  const toggleClear = on => { $("#btn-clear").hidden = on; $("#btn-clear-ok").hidden = !on; $("#btn-clear-no").hidden = !on; };
+  $("#btn-clear").onclick = () => toggleClear(true);
+  $("#btn-clear-no").onclick = () => toggleClear(false);
+  $("#btn-clear-ok").onclick = async () => {
+    toggleClear(false); if (!precisaDb()) return;
+    for (const p of semanaDocs()) { try { await state.db.collection("programacao").doc(p.id).delete(); } catch(e){ status("Falhou ao limpar.", "bad"); return; } }
+    toast("Semana limpa");
+  };
+  $("#btn-frio").onclick = async () => {
+    const data = $("#fr-data").value, frio = $("#fr-frio").value, qtd = Number($("#fr-qtd").value), unidade = $("#fr-un").value, tipo = $("#fr-tipo").value, obs = $("#fr-obs").value.trim();
+    if (!data || !frio || !$("#fr-qtd").value || !isFinite(qtd) || (tipo !== "ajuste" && qtd <= 0)){ status("Preencha data, frio e quantidade (positiva, exceto ajuste).", "bad"); return; }
+    if (!precisaDb()) return;
+    try { await state.db.collection("frios").add({ data, frio, qtd, unidade, tipo, obs, origem:"manual" }); status(""); toast("Movimento lançado"); $("#fr-qtd").value = ""; $("#fr-obs").value = ""; }
+    catch(e){ status("Não salvou (" + (e.code||"erro") + ").", "bad"); }
+  };
+  $("#btn-msg").onclick = () => {
+    const txt = $("#msg-txt").value.trim(), data = $("#msg-data").value; const itens = lerMensagem(txt); const box = $("#msg-out");
+    if (!txt){ box.replaceChildren(); return; }
+    if (!itens.length){ box.replaceChildren(el("div", { class:"notice bad" }, "Não achei frio + quantidade nessa mensagem.")); return; }
+    const btn = el("button", { class:"primary", disabled: !state.canWrite }, "Lançar baixa");
+    btn.onclick = async () => {
+      if (!precisaDb()) return; btn.disabled = true;
+      try { const ref = await state.db.collection("mensagens").add({ data, hora: "", autor: "colada no painel", texto: txt, itens, status: "revisar" }); await lancarMsg({ id: ref.id, data, autor: "colada", hora: "", itens }); $("#msg-txt").value = ""; box.replaceChildren(); }
+      catch(e){ status("Não salvou (" + (e.code||"erro") + ").", "bad"); btn.disabled = false; }
+    };
+    box.replaceChildren(el("div", { class:"notice ok" }, "Uso de " + itens.map(i => fmt(i.qtd, i.unidade === "kg" ? 3 : 0) + (i.unidade === "kg" ? " kg de " : " pç de ") + i.frio).join(", ") + " em " + ddmm(parseIso(data)) + ". "), btn);
+  };
+  $("#btn-gramas").onclick = async () => {
+    if (!precisaDb()) return;
+    const g = {}, p = {}; for (const f of FRIOS){ const v = Number($("#g-" + slug(f)).value); if (isFinite(v) && v >= 0) g[f] = v; const w = $("#p-" + slug(f)).value; if (w !== "" && Number(w) > 0) p[f] = Number(w); }
+    try { await state.db.doc("config/parametros").set({ gramas: g, pesos: p, modo: $("#cfg-modo").value }); toast("Ajustes salvos"); } catch(e){ status("Não salvou (" + (e.code||"erro") + ").", "bad"); }
+  };
+  // ---------- print do WhatsApp ----------
+  function setPrint(blob){
+    if (!blob) return; state.printBlob = blob; state.printRes = [];
+    const img = $("#print-img"); img.src = URL.createObjectURL(blob); img.hidden = false;
+    $("#print-hint").textContent = "Print carregado. Confira a data e clique em Ler print.";
+    $("#btn-print").disabled = false; $("#btn-print-clear").hidden = false; $("#print-out").replaceChildren();
+  }
+  document.addEventListener("paste", e => {
+    if (state.view !== "frios") return;
+    const f = [...(e.clipboardData?.files || [])].find(x => x.type.startsWith("image/"));
+    if (f){ e.preventDefault(); setPrint(f); }
+  });
+  const zone = $("#print-zone");
+  zone.addEventListener("click", () => $("#print-file").click());
+  zone.addEventListener("keydown", e => { if (e.key === "Enter") $("#print-file").click(); });
+  zone.addEventListener("dragover", e => { e.preventDefault(); zone.classList.add("over"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("over"));
+  zone.addEventListener("drop", e => { e.preventDefault(); zone.classList.remove("over"); const f = [...e.dataTransfer.files].find(x => x.type.startsWith("image/")); if (f) setPrint(f); });
+  $("#print-file").addEventListener("change", e => { setPrint(e.target.files[0]); e.target.value = ""; });
+  $("#btn-print-clear").onclick = () => { state.printBlob = null; state.printRes = []; $("#print-img").hidden = true; $("#print-hint").textContent = "Clique aqui e cole o print (Ctrl+V), arraste a imagem ou clique para escolher o arquivo"; $("#btn-print").disabled = true; $("#btn-print-clear").hidden = true; $("#print-out").replaceChildren(); };
+
+  async function imagemParaBase64(blob){
+    const bmp = await createImageBitmap(blob);
+    const k = Math.min(1, 1568 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.88).split(",")[1];
+  }
+
+  $("#btn-print").onclick = async () => {
+    if (!state.sb || !state.printBlob) return;
+    const b = $("#btn-print"), out = $("#print-out"); b.disabled = true; b.textContent = "Lendo…";
+    out.replaceChildren(el("div", { class:"notice info" }, "Lendo o print… pode levar alguns segundos."));
+    try {
+      const image = await imagemParaBase64(state.printBlob);
+      const { data: r, error } = await state.sb.functions.invoke("ler-print", { body: { image, media_type: "image/jpeg", frios: FRIOS } });
+      if (error) throw { code: "funcao", message: String(error.message || error) };
+      if (r?.erro) throw { code: "funcao", message: r.erro };
+      const lista = Array.isArray(r?.mensagens) ? r.mensagens : [];
+      state.printRes = lista.map(m => ({ hora: String(m.hora || ""), autor: String(m.autor || ""), texto: String(m.texto || ""), uso: !!m.uso, obs: String(m.observacao || ""),
+        itens: (Array.isArray(m.itens) ? m.itens : []).map(i => ({ frio: FRIOS.find(f => norm(f) === norm(i.frio)) || null, qtd: Number(i.qtd), unidade: i.unidade === "kg" ? "kg" : "peca" })).filter(i => i.frio && isFinite(i.qtd) && i.qtd > 0) }));
+      renderPrint();
+    } catch(e){
+      const msg = "Não consegui ler o print" + (e?.message ? " (" + e.message + ")" : "") + ". Tente de novo.";
+      out.replaceChildren(el("div", { class:"notice bad" }, msg));
+    }
+    b.disabled = false; b.textContent = "Ler print";
+  };
+
+  const idMsg = (data, m) => (data + "_" + (m.hora || "x").replace(/[^0-9]/g, "") + "_" + slug(m.texto).slice(0, 60)).replace(/_+$/, "") || data + "_" + Date.now();
+  function renderPrint(){
+    const out = $("#print-out"); const data = $("#print-data").value;
+    if (!state.printRes.length){ out.replaceChildren(el("div", { class:"notice info" }, "Nenhuma mensagem com quantidade de frio encontrada nesse print.")); return; }
+    const rows = state.printRes.map((m, k) => {
+      const ja = state.msgs.find(x => x.id === idMsg(data, m) && x.status === "lancada");
+      const cb = el("input", { type:"checkbox", id:"pr-" + k, checked: m.uso && m.itens.length && !ja ? true : null, disabled: !m.itens.length || !!ja || !state.canWrite });
+      cb.addEventListener("change", () => { m.sel = cb.checked; });
+      m.sel = cb.checked;
+      const itens = m.itens.map(i => fmt(i.qtd, i.unidade === "kg" ? 3 : 0) + (i.unidade === "kg" ? " kg " : " pç ") + i.frio).join(" · ") || "sem frio reconhecido";
+      return el("label", { class:"print-row", for:"pr-" + k }, cb, el("div", {},
+        el("div", {}, el("b", {}, itens), " ", ja ? el("span", { class:"chip ok" }, "Já lançada") : m.uso ? el("span", { class:"chip ok" }, "Uso") : el("span", { class:"chip warn" }, "Revisar")),
+        el("div", {}, "“" + m.texto + "”"),
+        el("div", { class:"frio-tags" }, [m.autor, m.hora, m.obs].filter(Boolean).join(" · "))));
+    });
+    const go = el("button", { class:"primary", disabled: !state.canWrite }, "Lançar baixa das marcadas");
+    go.onclick = async () => {
+      if (!precisaDb()) return; go.disabled = true; let n = 0;
+      for (const m of state.printRes){
+        if (!m.sel || !m.itens.length) continue;
+        const id = idMsg(data, m);
+        if (state.msgs.some(x => x.id === id && x.status === "lancada")) continue;
+        try {
+          await state.db.collection("mensagens").doc(id).set({ data, hora: m.hora, autor: m.autor, texto: m.texto, itens: m.itens, status: "revisar", origem: "print", motivo: m.obs });
+          await lancarMsg({ id, data, hora: m.hora, autor: m.autor, itens: m.itens }); n++;
+        } catch(e){ status("Parou em uma mensagem (" + (e.code||"erro") + "). As anteriores já foram lançadas.", "bad"); break; }
+      }
+      toast(n + " mensagem(ns) lançada(s)"); $("#btn-print-clear").click();
+    };
+    out.replaceChildren(el("div", {}, ...rows), el("div", { class:"form-row", style:"margin-top:8px" }, go, el("span", { class:"muted" }, "Mensagens marcadas como Revisar ficam desmarcadas; marque se quiser baixar mesmo assim.")));
+  }
+  $("#print-data").addEventListener("change", () => { if (state.printRes.length) renderPrint(); });
+
+  function route(){ const h = location.hash.replace("#", ""); state.view = ["semana","programacao","frios","ajustes"].includes(h) ? h : "semana"; render(); }
+  window.addEventListener("hashchange", route);
+  $("#fr-data").value = iso(new Date()); $("#add-data").value = iso(new Date()); $("#msg-data").value = iso(new Date()); $("#print-data").value = iso(new Date());
+  route();
+
+  // ---------- dados (Supabase) ----------
+  const TABELA = { programacao:"programacao", frios:"frios", mensagens:"mensagens", config:"config" };
+  function snap(rows){ const docs = rows.map(r => ({ id: r.id, exists: true, data: () => r.doc })); return { docs, size: docs.length, empty: !docs.length }; }
+  function makeDb(sb){
+    const check = ({ error }) => { if (error) throw { code: error.code || "erro", message: error.message }; };
+    const docRef = (tab, id) => ({
+      id,
+      async set(d){ check(await sb.from(tab).upsert({ id, doc: d })); },
+      async update(d){ const r = await sb.from(tab).select("doc").eq("id", id).single(); check(r); check(await sb.from(tab).update({ doc: { ...r.data.doc, ...d } }).eq("id", id)); },
+      async delete(){ check(await sb.from(tab).delete().eq("id", id)); },
+      onSnapshot(next, err){
+        const load = async () => { const r = await sb.from(tab).select("id,doc").eq("id", id).maybeSingle(); if (r.error) return err && err(r.error); next(r.data ? { id, exists: true, data: () => r.data.doc } : { id, exists: false, data: () => undefined }); };
+        load(); const ch = sb.channel("doc-" + tab + "-" + id).on("postgres_changes", { event: "*", schema: "public", table: tab }, load).subscribe(); return () => sb.removeChannel(ch);
+      }
+    });
+    const colRef = tab => ({
+      doc: id => docRef(tab, id ?? crypto.randomUUID()),
+      async add(d){ const id = crypto.randomUUID(); check(await sb.from(tab).insert({ id, doc: d })); return docRef(tab, id); },
+      onSnapshot(next, err){
+        const load = async () => { const r = await sb.from(tab).select("id,doc").order("id").limit(5000); if (r.error) return err && err(r.error); next(snap(r.data)); };
+        load(); const ch = sb.channel("col-" + tab).on("postgres_changes", { event: "*", schema: "public", table: tab }, load).subscribe(); return () => sb.removeChannel(ch);
+      }
+    });
+    return { collection: name => colRef(TABELA[name] || name), doc: path => { const [c, id] = path.split("/"); return docRef(TABELA[c] || c, id); } };
+  }
+
+  async function iniciarApp(session){
+    const sb = state.sb;
+    const { data: perfil } = await sb.from("perfis").select("nome,papel").eq("id", session.user.id).maybeSingle();
+    state.isAdmin = perfil?.papel === "admin";
+    document.body.classList.toggle("operador", !state.isAdmin);
+    $("#user-lbl").textContent = (perfil?.nome || session.user.email) + " · " + (state.isAdmin ? "admin" : "operador");
+    if (!state.isAdmin){ $("#fr-tipo").value = "uso"; if (["programacao","ajustes"].includes(state.view)) location.hash = "frios"; }
+    $("#login").hidden = true; $("#app").hidden = false;
+    if (state.db) { render(); return; }
+    const db = makeDb(sb); state.db = db;
+    const erro = e => status("Erro ao carregar dados (" + (e.message || e.code || "erro") + "). Recarregue a página.", "bad");
+    db.collection("programacao").onSnapshot(s => { state.prog = s.docs.map(d => ({ id:d.id, ...d.data() })); render(); }, erro);
+    db.collection("frios").onSnapshot(s => { state.mov = s.docs.map(d => ({ id:d.id, ...d.data() })); render(); }, erro);
+    db.collection("mensagens").onSnapshot(s => { state.msgs = s.docs.map(d => ({ id:d.id, ...d.data() })); render(); }, erro);
+    db.doc("config/parametros").onSnapshot(s => { const d = (s.exists && s.data()) || {}; state.gramas = d.gramas || {}; state.pesos = d.pesos || {}; state.modo = d.modo || "mensagem"; render(); }, erro);
+  }
+
+  (async () => {
+    const cfg = window.PAINEL_CONFIG || {};
+    if (!window.supabase || !cfg.SUPABASE_URL || cfg.SUPABASE_URL.includes("COLE_AQUI")){
+      document.body.innerHTML = '<div class="wrap"><div class="notice bad">Configure o arquivo config.js com a URL e a chave do Supabase.</div></div>'; return;
+    }
+    const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+    state.sb = sb;
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) iniciarApp(session); else $("#login").hidden = false;
+    sb.auth.onAuthStateChange((ev, s) => { if (ev === "SIGNED_OUT"){ location.reload(); } });
+    $("#login-form").addEventListener("submit", async e => {
+      e.preventDefault(); const btn = $("#lg-btn"); btn.disabled = true; $("#lg-msg").hidden = true;
+      const { data, error } = await sb.auth.signInWithPassword({ email: $("#lg-email").value.trim(), password: $("#lg-senha").value });
+      btn.disabled = false;
+      if (error){ const m = $("#lg-msg"); m.textContent = "E-mail ou senha incorretos."; m.hidden = false; return; }
+      iniciarApp(data.session);
+    });
+    $("#btn-sair").onclick = () => sb.auth.signOut();
+  })();
+})();
+</script>
+</body>
+</html>
