@@ -212,11 +212,12 @@ body.operador .admin-only{display:none!important}
     <div class="grid2">
       <div class="panel">
         <h2>Colar do Excel</h2>
-        <p class="muted" style="margin:0">Copie a programação (dias + lanche + quantidade) e cole aqui. Ela entra na semana selecionada no topo.</p>
-        <textarea id="paste" rows="12" placeholder="SEGUNDA&#10;Baguete Simples com Presunto e Mussarela	4.500&#10;TERÇA&#10;Baguete Simples com Margarina	75"></textarea>
+        <p class="muted" style="margin:0">Escolha a data, escreva ou cole os lanches (um por linha, com a quantidade no fim) e clique em Lançar.</p>
+        <textarea id="paste" rows="12" placeholder="Baguete Simples com Presunto e Mussarela 4500&#10;Baguete Parmesão com Peito de Peru e Mussarela 1200"></textarea>
         <div class="form-row">
+          <label>Data dos lanches<input type="date" id="paste-data"></label>
           <button id="btn-parse">Conferir</button>
-          <button id="btn-import" class="primary" disabled>Lançar na semana</button>
+          <button id="btn-import" class="primary">Lançar</button>
         </div>
         <div id="parse-out"></div>
       </div>
@@ -547,27 +548,44 @@ body.operador .admin-only{display:none!important}
   async function excluirMov(m){ if (!precisaDb()) return; try { await state.db.collection("frios").doc(m.id).delete(); toast("Movimento excluído"); } catch(e){ status("Não excluiu (" + (e.code||"erro") + ").", "bad"); } }
 
   // ---------- colar do Excel ----------
-  function parsePaste(txt){
-    const out = {}; const avisos = []; let dia = null;
+  function parsePaste(txt, dataPadrao){
+    const out = {}; const avisos = []; let dia = null; let dataFixa = dataPadrao || null;
     const mapa = { segunda:0, terca:1, quarta:2, quinta:3, sexta:4, sabado:5, domingo:6 };
-    for (const raw of txt.split(/\r?\n/)){
-      const linha = raw.replace(/ /g, " ").trim(); if (!linha) continue;
-      const n = norm(linha.replace(/\t/g, " ")).replace(/-feira/, "");
-      const chave = Object.keys(mapa).find(k => n === k || n.startsWith(k + " ") && !/\d/.test(n));
-      if (chave){ dia = mapa[chave]; continue; }
+    // junta células do Excel com quebra de linha dentro de aspas ("texto\ncontinuação")
+    const linhas = []; let buf = null;
+    for (const raw of txt.replace(/ /g, " ").split(/\r?\n/)){
+      if (buf !== null){ buf += " " + raw; if ((buf.match(/"/g) || []).length % 2 === 0){ linhas.push(buf.replace(/"/g, "")); buf = null; } continue; }
+      if (((raw.match(/"/g) || []).length % 2) === 1){ buf = raw; continue; }
+      linhas.push(raw.replace(/"/g, ""));
+    }
+    if (buf !== null) linhas.push(buf.replace(/"/g, ""));
+    for (const raw of linhas){
+      const linha = raw.trim(); if (!linha) continue;
+      const n = norm(linha.replace(/\t/g, " "));
+      const chave = Object.keys(mapa).find(k => n.startsWith(k));
+      if (chave){
+        const resto = n.slice(chave.length).replace(/feira/g, "").replace(/\d{1,2}\/\d{1,2}(\/\d{2,4})?/g, "").replace(/[^a-z0-9]/g, "");
+        if (!resto){
+          dia = mapa[chave]; dataFixa = null;
+          const dm = n.match(/(\d{1,2})\/(\d{1,2})/);
+          if (dm){ const ref = state.week; let d = new Date(ref.getFullYear(), Number(dm[2]) - 1, Number(dm[1])); if (d - ref > 200 * 864e5) d.setFullYear(d.getFullYear() - 1); if (ref - d > 200 * 864e5) d.setFullYear(d.getFullYear() + 1); dataFixa = iso(d); }
+          continue;
+        }
+      }
       if (n.startsWith("segue") || n.startsWith("programa")) continue;
       let nome, qtdTxt;
       const cells = linha.split("\t").map(c => c.trim()).filter(Boolean);
       if (cells.length >= 2){ nome = cells[0]; qtdTxt = cells[cells.length-1]; }
       else { const m = linha.match(/^(.*?)\s+([\d.,]+)$/); if (m){ nome = m[1]; qtdTxt = m[2]; } }
-      if (!nome || !qtdTxt){ avisos.push("Ignorada: " + linha); continue; }
+      if (!nome || !qtdTxt){ avisos.push("Ignorada (sem quantidade): " + linha); continue; }
       const qtd = Number(qtdTxt.replace(/\./g, "").replace(",", "."));
       if (!isFinite(qtd)){ avisos.push("Quantidade inválida: " + linha); continue; }
-      if (dia === null){ avisos.push("Sem dia definido antes de: " + nome); continue; }
-      const data = iso(addDays(state.week, dia)); const k = data + "|" + norm(nome);
+      if (dia === null && !dataFixa){ avisos.push("Sem dia: " + nome); continue; }
+      const data = dataFixa || iso(addDays(state.week, dia)); const k = data + "|" + norm(nome);
       if (out[k]) out[k].qtd += qtd; else out[k] = { data, lanche: nome.replace(/\s+/g, " ").trim(), qtd };
     }
-    return { linhas: Object.values(out), avisos };
+    const semDia = avisos.filter(a => a.startsWith("Sem dia")).length;
+    return { linhas: Object.values(out), avisos, semDia };
   }
 
   // ---------- eventos ----------
@@ -575,21 +593,23 @@ body.operador .admin-only{display:none!important}
   $("#wk-next").onclick = () => { state.week = addDays(state.week, 7); render(); };
   $("#wk-today").onclick = () => { state.week = monday(new Date()); render(); };
   $("#btn-parse").onclick = () => {
-    const r = parsePaste($("#paste").value); state.parsed = r.linhas;
+    const r = parsePaste($("#paste").value, $("#paste-data").value); state.parsed = r.linhas;
     const tot = r.linhas.reduce((s,l) => s + l.qtd, 0);
     const box = $("#parse-out");
     const semFrio = r.linhas.filter(l => !friosDoLanche(l.lanche).length).length;
     box.replaceChildren(
-      el("div", { class: "notice " + (r.linhas.length ? "ok" : "bad") }, r.linhas.length ? `${r.linhas.length} linhas, ${fmt(tot)} lanches, semana de ${ddmm(state.week)}.` + (semFrio ? ` ${semFrio} sem frio reconhecido.` : "") : "Nada reconhecido. Cada dia precisa de um título (SEGUNDA, TERÇA…) e cada lanche de uma quantidade."),
+      el("div", { class: "notice " + (r.linhas.length ? "ok" : "bad") }, r.linhas.length ? `${r.linhas.length} linhas, ${fmt(tot)} lanches: ` + [...new Set(r.linhas.map(l => l.data))].sort().map(d => DIAS[(parseIso(d).getDay()+6)%7] + " " + ddmm(parseIso(d))).join(", ") + "." + (semFrio ? ` ${semFrio} sem frio reconhecido.` : "") + (r.semDia ? ` ${r.semDia} linha(s) sem dia ficaram de fora.` : "") : (r.semDia ? "Escolha a data no campo \"Data dos lanches\"." : "Nada reconhecido. Cada lanche precisa de uma quantidade no fim da linha.")),
       ...r.avisos.slice(0, 8).map(a => el("div", { class:"muted", style:"font-size:12px" }, a)));
-    $("#btn-import").disabled = !r.linhas.length || !state.canWrite;
+    return r;
   };
   $("#btn-import").onclick = async () => {
-    if (!precisaDb() || !state.parsed.length) return;
+    if (!precisaDb()) return;
+    const r = $("#btn-parse").onclick();
+    if (!r.linhas.length) return;
     const b = $("#btn-import"); b.disabled = true; b.textContent = "Lançando…";
-    try { for (const l of state.parsed) await gravarLinha(l.data, l.lanche, l.qtd); toast(state.parsed.length + " linhas lançadas"); state.parsed = []; $("#paste").value = ""; $("#parse-out").replaceChildren(); location.hash = "semana"; }
+    try { for (const l of state.parsed) await gravarLinha(l.data, l.lanche, l.qtd); toast(state.parsed.length + " linhas lançadas"); const d0 = parseIso(state.parsed[0].data); state.week = monday(d0); state.parsed = []; $("#paste").value = ""; $("#parse-out").replaceChildren(); location.hash = "semana"; render(); }
     catch (e){ status("Parou no meio (" + (e.code||"erro") + "). Confira e lance de novo; linhas já gravadas só são atualizadas.", "bad"); }
-    b.textContent = "Lançar na semana";
+    b.disabled = false; b.textContent = "Lançar";
   };
   $("#btn-add").onclick = async () => {
     const data = $("#add-data").value, lanche = $("#add-lanche").value.trim(), qtd = Number($("#add-qtd").value);
@@ -714,7 +734,7 @@ body.operador .admin-only{display:none!important}
 
   function route(){ const h = location.hash.replace("#", ""); state.view = ["semana","programacao","frios","ajustes"].includes(h) ? h : "semana"; render(); }
   window.addEventListener("hashchange", route);
-  $("#fr-data").value = iso(new Date()); $("#add-data").value = iso(new Date()); $("#msg-data").value = iso(new Date()); $("#print-data").value = iso(new Date());
+  $("#fr-data").value = iso(new Date()); $("#add-data").value = iso(new Date()); $("#msg-data").value = iso(new Date()); $("#print-data").value = iso(new Date()); $("#paste-data").value = iso(new Date());
   route();
 
   // ---------- dados (Supabase) ----------
