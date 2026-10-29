@@ -467,7 +467,10 @@ body.operador .admin-only{display:none!important}
         const fr = friosDoLanche(p.lanche);
         body.append(el("tr", {},
           el("td", {}, p.lanche, el("div", { class:"frio-tags" }, fr.length ? fr.join(" · ") : "nenhum frio reconhecido no nome")),
-          el("td", { class:"r num" }, fmt(p.qtd)), el("td", { class:"r" }, inp),
+          el("td", { class:"r" }, (() => { if (!state.isAdmin) return el("span", { class:"num" }, fmt(p.qtd));
+            const q = el("input", { class:"rec", type:"number", min:"0", step:"1", id:"prog-" + p.id, "aria-label":"Programado " + p.lanche, value: p.qtd, title:"Corrigir a quantidade programada" });
+            q.addEventListener("change", async () => { if (!precisaDb()) return; const v = Math.max(0, Math.round(Number(q.value) || 0)); try { if (v === 0) { await state.db.collection("programacao").doc(p.id).delete(); toast("Linha removida"); } else { await state.db.collection("programacao").doc(p.id).update({ qtd: v }); toast("Programado corrigido"); } } catch(e){ status("Não salvou (" + (e.code||"erro") + ").", "bad"); } });
+            return q; })()), el("td", { class:"r" }, inp),
           el("td", { class:"r num" + (dif < 0 ? " saldo-neg" : "") }, dif === null ? "—" : (dif > 0 ? "+" : "") + fmt(dif)),
           el("td", {}, chip)));
       }
@@ -547,7 +550,8 @@ body.operador .admin-only{display:none!important}
     const id = data + "_" + slug(lanche);
     const ex = state.prog.find(p => p.id === id);
     const ref = state.db.collection("programacao").doc(id);
-    if (ex) await ref.update({ qtd, lanche }); else await ref.set({ data, lanche, qtd, recebido: null });
+    // lançamento novo do mesmo lanche no mesmo dia SOMA à quantidade já programada
+    if (ex) await ref.update({ qtd: (Number(ex.qtd) || 0) + qtd, lanche: ex.lanche || lanche }); else await ref.set({ data, lanche, qtd, recebido: null });
   }
   async function lancarMsg(m){
     if (!precisaDb()) return;
@@ -610,7 +614,7 @@ body.operador .admin-only{display:none!important}
     const box = $("#parse-out");
     const semFrio = r.linhas.filter(l => !friosDoLanche(l.lanche).length).length;
     box.replaceChildren(
-      el("div", { class: "notice " + (r.linhas.length ? "ok" : "bad") }, r.linhas.length ? `${r.linhas.length} linhas, ${fmt(tot)} lanches: ` + [...new Set(r.linhas.map(l => l.data))].sort().map(d => DIAS[(parseIso(d).getDay()+6)%7] + " " + ddmm(parseIso(d))).join(", ") + "." + (semFrio ? ` ${semFrio} sem frio reconhecido.` : "") + (r.semDia ? ` ${r.semDia} linha(s) sem dia ficaram de fora.` : "") : (r.semDia ? "Escolha a data no campo \"Data dos lanches\"." : "Nada reconhecido. Cada lanche precisa de uma quantidade no fim da linha.")),
+      el("div", { class: "notice " + (r.linhas.length ? "ok" : "bad") }, r.linhas.length ? `${r.linhas.length} linhas, ${fmt(tot)} lanches (somam ao que já estiver programado no dia): ` + [...new Set(r.linhas.map(l => l.data))].sort().map(d => DIAS[(parseIso(d).getDay()+6)%7] + " " + ddmm(parseIso(d))).join(", ") + "." + (semFrio ? ` ${semFrio} sem frio reconhecido.` : "") + (r.semDia ? ` ${r.semDia} linha(s) sem dia ficaram de fora.` : "") : (r.semDia ? "Escolha a data no campo \"Data dos lanches\"." : "Nada reconhecido. Cada lanche precisa de uma quantidade no fim da linha.")),
       ...r.avisos.slice(0, 8).map(a => el("div", { class:"muted", style:"font-size:12px" }, a)));
     return r;
   };
