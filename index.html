@@ -517,7 +517,7 @@ body.operador .admin-only{display:none!important}
       const n = (v, d = 1) => v === null ? "—" : fmt(v, d);
       const sub = t => el("div", { class:"frio-tags" }, t);
       const wk = ddmm(state.week) + "–" + ddmm(addDays(state.week, 6));
-      const amarelo = "background:var(--warn-soft);color:var(--warn);font-weight:600";
+      const amarelo = "color:#c98a00;font-weight:700";
       const body = el("tbody", {}, s.map(x => el("tr", {},
         el("td", {}, x.frio, x.semPeso ? sub("sem peso da peça") : null),
         el("td", { class:"r num" }, n(x.anterior)),
@@ -525,7 +525,7 @@ body.operador .admin-only{display:none!important}
         el("td", { class:"r num" }, n(x.consumo), sub(state.modo === "teorico" ? (x.uso ? "Laís: " + fmt(x.uso,1) : "teórico") : (x.teo !== null ? "teórico: " + fmt(x.teo,1) : "Laís"))),
         el("td", { class:"r" }, el("b", { class:"num", style:"font-size:15px" }, fmt(x.estoque, 1)), sub((x.semPeso ? "" : fmt(x.estoque * pesoDe(x.frio), 1) + " kg") + (x.contSem ? " · com contagem" : ""))),
         el("td", { class:"r num", style: amarelo }, x.nec === null ? fmt(x.necKg, 2) + " kg" : fmt(x.nec, 1)),
-        el("td", { class:"r", style: x.dif === null ? "" : "font-weight:700;" + (x.dif < -0.05 ? "background:var(--bad-soft);color:var(--bad)" : "background:var(--ok-soft);color:var(--ok)") }, el("span", { class:"num" }, x.dif === null ? "—" : (x.dif > 0 ? "+" : "") + fmt(x.dif, 1))),
+        el("td", { class:"r", style: x.dif === null ? "" : "font-weight:700;" + (x.dif < -0.05 ? "color:var(--bad)" : "color:var(--ok)") }, el("span", { class:"num" }, x.dif === null ? "—" : (x.dif > 0 ? "+" : "") + fmt(x.dif, 1))),
         el("td", { class:"r num" }, x.enviar > 0.05 ? el("b", { style:"color:var(--bad)" }, fmt(Math.ceil(x.enviar), 0)) : "—")
       )));
       tb.replaceChildren(el("thead", {},
