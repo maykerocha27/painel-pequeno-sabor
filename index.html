@@ -389,36 +389,40 @@ body.operador .admin-only{display:none!important}
   }
   const pesoDe = f => Number(state.pesos[f]) || PESOS_PADRAO[f] || 0;
   function emPecas(m){ const q = Number(m.qtd ?? m.kg) || 0; const un = m.unidade || (m.kg !== undefined ? "kg" : "peca"); if (un === "peca") return q; const p = pesoDe(m.frio); return p ? q / p : null; }
-  // Estoque atual = última contagem física + envios − devoluções ± ajustes − consumo, tudo a partir da data da contagem
-  function ultimaContagem(f){ return state.mov.filter(m => m.tipo === "contagem" && m.frio === f).sort((a,b) => ((b.data||"") + (b.criado||"")).localeCompare((a.data||"") + (a.criado||"")))[0] || null; }
-  function saldos(){
-    const tot = { envio:{}, devolucao:{}, ajuste:{}, uso:{} }, semPeso = new Set();
-    const cont = {}; for (const f of FRIOS){ const c = ultimaContagem(f); if (c) cont[f] = c; }
-    const desde = f => cont[f] ? cont[f].data : "";
+  // Estoque de um frio no INÍCIO do dia "ate" (exclusivo): última contagem antes dessa data + envios − devoluções ± ajustes − consumo
+  function contagemAntes(f, ate){ return state.mov.filter(m => m.tipo === "contagem" && m.frio === f && (m.data || "") < ate).sort((a,b) => ((b.data||"") + (b.criado||"")).localeCompare((a.data||"") + (a.criado||"")))[0] || null; }
+  function movimentoPc(f, de, ate){
+    const t = { envio:0, devolucao:0, ajuste:0, uso:0, semPeso:false };
     for (const m of state.mov){
-      if (m.tipo === "contagem") continue;
-      if ((m.data || "") < desde(m.frio)) continue;
-      const pc = emPecas(m); if (pc === null){ semPeso.add(m.frio); continue; }
-      const t = tot[m.tipo] || tot.envio; t[m.frio] = (t[m.frio]||0) + pc;
+      if (m.frio !== f || m.tipo === "contagem") continue;
+      const d = m.data || ""; if (d < de || d >= ate) continue;
+      const pc = emPecas(m); if (pc === null){ t.semPeso = true; continue; }
+      if (m.tipo in t) t[m.tipo] += pc; else t.envio += pc;
     }
-    const teoKgDe = f => consumoPorFrio(state.prog.filter(p => (p.data || "") >= desde(f)), "recebido")[f] || 0;
-    const necKg = consumoPorFrio(semanaDocs(), "pendente");
-    const kg2pc = (f, kg) => pesoDe(f) ? kg / pesoDe(f) : null;
-    // números só da semana selecionada no topo
+    return t;
+  }
+  function teoricoPc(f, de, ate){ const kg = consumoPorFrio(state.prog.filter(p => (p.data||"") >= de && (p.data||"") < ate), "recebido")[f] || 0; return { kg, pc: pesoDe(f) ? kg / pesoDe(f) : null }; }
+  function estoqueAte(f, ate){
+    const c = contagemAntes(f, ate); const de = c ? c.data : "";
+    const base = c ? (emPecas(c) ?? 0) : 0;
+    const mv = movimentoPc(f, de, ate), teo = teoricoPc(f, de, ate);
+    const baixa = state.modo === "teorico" ? (teo.pc ?? 0) : mv.uso;
+    return base + mv.envio - mv.devolucao + mv.ajuste - baixa;
+  }
+  function saldos(){
     const wa = iso(state.week), wb = iso(addDays(state.week, 7));
-    const sem = { envio:{}, uso:{} };
-    for (const m of state.mov){ if (!(m.data >= wa && m.data < wb) || !sem[m.tipo]) continue; const pc = emPecas(m); if (pc === null) continue; sem[m.tipo][m.frio] = (sem[m.tipo][m.frio]||0) + pc; }
-    const semTeoKg = consumoPorFrio(semanaDocs(), "recebido");
-    const comTeo = Object.keys(consumoPorFrio(state.prog, "recebido"));
-    const nomes = [...new Set([...Object.values(tot).flatMap(Object.keys), ...Object.keys(cont), ...comTeo, ...Object.keys(necKg), ...Object.keys(sem.envio)])].sort((a,b) => FRIOS.indexOf(a) - FRIOS.indexOf(b));
+    const necKg = consumoPorFrio(semanaDocs(), "pendente");
+    const usados = new Set([...state.mov.map(m => m.frio), ...Object.keys(consumoPorFrio(state.prog, "recebido")), ...Object.keys(necKg)]);
+    const nomes = FRIOS.filter(f => usados.has(f)).concat([...usados].filter(f => !FRIOS.includes(f)));
     return nomes.map(f => {
-      const base = cont[f] ? (emPecas(cont[f]) ?? 0) : 0;
-      const env = tot.envio[f]||0, dev = tot.devolucao[f]||0, aj = tot.ajuste[f]||0, uso = tot.uso[f]||0;
-      const teoKg = teoKgDe(f), teo = kg2pc(f, teoKg), nec = kg2pc(f, necKg[f]||0);
-      const baixa = state.modo === "teorico" ? (teo ?? 0) : uso;
-      const saldo = base + env - dev + aj - baixa;
-      const sTeo = kg2pc(f, semTeoKg[f]||0), sUso = sem.uso[f]||0;
-      return { frio:f, sEnv: sem.envio[f]||0, sUso, sTeo, sTeoKg: semTeoKg[f]||0, sDif: sTeo === null ? null : sUso - sTeo, base, contData: cont[f]?.data || null, env, dev, aj, uso, teo, teoKg, dif: teo === null ? null : uso - teo, saldo, nec, necKg: necKg[f]||0, enviar: nec === null ? null : Math.max(0, nec - Math.max(0, saldo)), semPeso: semPeso.has(f) || !pesoDe(f) };
+      const anterior = estoqueAte(f, wa);
+      const mv = movimentoPc(f, wa, wb), teo = teoricoPc(f, wa, wb);
+      const consumo = state.modo === "teorico" ? (teo.pc ?? 0) : mv.uso;
+      const contSem = state.mov.some(m => m.tipo === "contagem" && m.frio === f && m.data >= wa && m.data < wb);
+      const estoque = estoqueAte(f, wb);
+      const nec = pesoDe(f) ? (necKg[f]||0) / pesoDe(f) : null;
+      const dif = nec === null ? null : estoque - nec;
+      return { frio:f, anterior, env: mv.envio, dev: mv.devolucao, aj: mv.ajuste, uso: mv.uso, teo: teo.pc, teoKg: teo.kg, consumo, contSem, estoque, saldo: estoque, nec, necKg: necKg[f]||0, dif, enviar: dif === null ? null : Math.max(0, -dif), semPeso: mv.semPeso || !pesoDe(f) };
     });
   }
 
@@ -505,7 +509,7 @@ body.operador .admin-only{display:none!important}
   }
 
   function renderSaldo(){
-    $("#saldo-regra").textContent = "Em peças. Colunas da semana mudam com a semana do topo. Estoque atual = última contagem + enviado − devolvido ± ajuste − " + (state.modo === "teorico" ? "consumo teórico" : "uso informado pela Laís") + " (acumulado).";
+    $("#saldo-regra").textContent = "Em peças. Estoque atual = saldo da semana anterior + enviado − consumo (" + (state.modo === "teorico" ? "lanches recebidos × gramagem" : "uso informado pela Laís") + "). Diferença = estoque atual − programado pendente: verde cobre, vermelho falta.";
     const tb = $("#tb-saldo"); const s = saldos();
     if (!s.length){ tb.replaceChildren(el("tr", {}, el("td", { class:"empty" }, "Sem estoque ainda. Faça a primeira contagem abaixo ou lance um envio."))); }
     else {
@@ -513,20 +517,20 @@ body.operador .admin-only{display:none!important}
       const n = (v, d = 1) => v === null ? "—" : fmt(v, d);
       const sub = t => el("div", { class:"frio-tags" }, t);
       const wk = ddmm(state.week) + "–" + ddmm(addDays(state.week, 6));
+      const amarelo = "background:var(--warn-soft);color:var(--warn);font-weight:600";
       const body = el("tbody", {}, s.map(x => el("tr", {},
         el("td", {}, x.frio, x.semPeso ? sub("sem peso da peça") : null),
-        el("td", { class:"r num" }, n(x.sEnv)),
-        el("td", { class:"r num" }, x.sTeo === null ? fmt(x.sTeoKg, 2) + " kg" : n(x.sTeo)),
-        el("td", { class:"r num" }, n(x.sUso)),
-        el("td", { class:"r num" + (x.sDif !== null && x.sDif > 0.5 ? " saldo-low" : "") }, x.sDif === null || (!x.sUso) ? "—" : (x.sDif > 0 ? "+" : "") + fmt(x.sDif, 1)),
-        el("td", { class:"r num" }, x.nec === null ? fmt(x.necKg, 2) + " kg" : n(x.nec)),
-        el("td", { class:"r num" + (x.enviar > 0 ? " saldo-low" : "") }, x.enviar === null ? "—" : x.enviar > 0 ? el("b", {}, fmt(Math.ceil(x.enviar), 0)) : "—"),
-        el("td", { class:"r", style:"border-left:2px solid var(--line)" }, el("b", { class:"num " + (x.saldo < -0.05 ? "saldo-neg" : x.nec !== null && x.saldo < x.nec ? "saldo-low" : ""), style:"font-size:15px" }, fmt(x.saldo, 1)),
-          sub((x.semPeso ? "" : fmt(x.saldo * pesoDe(x.frio), 1) + " kg") + (x.contData ? " · contagem " + ddmm(parseIso(x.contData)) : "")))
+        el("td", { class:"r num" }, n(x.anterior)),
+        el("td", { class:"r num" }, n(x.env), (x.dev || x.aj) ? sub((x.dev ? "−" + fmt(x.dev,1) + " devol. " : "") + (x.aj ? (x.aj > 0 ? "+" : "") + fmt(x.aj,1) + " ajuste" : "")) : null),
+        el("td", { class:"r num" }, n(x.consumo), sub(state.modo === "teorico" ? (x.uso ? "Laís: " + fmt(x.uso,1) : "teórico") : (x.teo !== null ? "teórico: " + fmt(x.teo,1) : "Laís"))),
+        el("td", { class:"r" }, el("b", { class:"num", style:"font-size:15px" }, fmt(x.estoque, 1)), sub((x.semPeso ? "" : fmt(x.estoque * pesoDe(x.frio), 1) + " kg") + (x.contSem ? " · com contagem" : ""))),
+        el("td", { class:"r num", style: amarelo }, x.nec === null ? fmt(x.necKg, 2) + " kg" : fmt(x.nec, 1)),
+        el("td", { class:"r", style: x.dif === null ? "" : "font-weight:700;" + (x.dif < -0.05 ? "background:var(--bad-soft);color:var(--bad)" : "background:var(--ok-soft);color:var(--ok)") }, el("span", { class:"num" }, x.dif === null ? "—" : (x.dif > 0 ? "+" : "") + fmt(x.dif, 1))),
+        el("td", { class:"r num" }, x.enviar > 0.05 ? el("b", { style:"color:var(--bad)" }, fmt(Math.ceil(x.enviar), 0)) : "—")
       )));
       tb.replaceChildren(el("thead", {},
-        el("tr", {}, el("th", {}), el("th", { colspan:6, style:"text-align:center;color:var(--accent)" }, "Semana " + wk), el("th", { class:"r", style:"border-left:2px solid var(--line);color:var(--accent)" }, "Acumulado")),
-        el("tr", {}, th("Frio"), th("Enviado",1), th("Consumo teórico",1), th("Usado (Laís)",1), th("Usado − teórico",1), th("Falta p/ programação",1), th("Enviar",1), th("Estoque atual",1, { style:"border-left:2px solid var(--line)" }))), body);
+        el("tr", {}, el("th", {}), el("th", { colspan:7, style:"text-align:center;color:var(--accent)" }, "Semana " + wk)),
+        el("tr", {}, th("Frio"), th("Saldo semana anterior",1), th("Enviado",1), th("Consumo",1), th("Estoque atual",1), th("Programado pendente",1), th("Diferença",1), th("Enviar",1))), body);
     }
     // grade de contagem
     const g = $("#tb-contagem"); if (!g) return;
