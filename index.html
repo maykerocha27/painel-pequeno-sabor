@@ -325,15 +325,9 @@ body.operador .admin-only{display:none!important}
       <div class="scroll"><table id="tb-gramas"></table></div>
     </div>
     <div class="panel" style="margin-top:16px">
-      <h2>Peso da peça e forma de baixa</h2>
-      <p class="muted" style="margin:0">Peso médio de cada peça, para converter kg ↔ peças e comparar o uso informado com o consumo teórico dos lanches.</p>
+      <h2>Peso da peça</h2>
+      <p class="muted" style="margin:0">Peso médio de cada peça, para converter o consumo dos lanches (em gramas) em peças.</p>
       <div class="scroll"><table id="tb-pesos"></table></div>
-      <div class="form-row">
-        <label>Baixa do saldo por<select id="cfg-modo">
-          <option value="mensagem">Uso informado pela Laís</option>
-          <option value="teorico">Lanches recebidos × gramagem</option>
-        </select></label>
-      </div>
     </div>
     <div class="form-row" style="margin-top:16px"><button id="btn-gramas" class="primary">Salvar ajustes</button></div>
   </section>
@@ -352,7 +346,7 @@ body.operador .admin-only{display:none!important}
   const GRAMAS_PADRAO = 20;
   const DIAS = ["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"];
   const ALIAS = { "Mussarela":["mussarela","mucarela","muzarela","mozarela","mozzarella","mussarelo"], "Presunto":["presunto"], "Peito de Peru":["peito de peru","peito peru"," peru"], "Mortadela":["mortadela"], "Queijo Prato":["queijo prato"," prato"], "Requeijão":["requeijao"], "Margarina":["margarina"], "Salame":["salame"], "Provolone":["provolone"], "Cheddar":["cheddar"], "Peperoni":["peperoni","pepperoni"], "Cream Cheese":["cream cheese"], "Lombo":["lombo"], "Parmesão":["parmesao"] };
-  const state = { sb: null, isAdmin: false, sample: null, printBlob: null, printRes: [], prog: [], mov: [], msgs: [], gramas: {}, pesos: {}, modo: "mensagem", msgParsed: null, week: monday(new Date()), view: "semana", canWrite: true, db: null, parsed: [] };
+  const state = { sb: null, isAdmin: false, sample: null, printBlob: null, printRes: [], prog: [], mov: [], msgs: [], gramas: {}, pesos: {}, modo: "teorico", msgParsed: null, week: monday(new Date()), view: "semana", canWrite: true, db: null, parsed: [] };
   const $ = s => document.querySelector(s);
   const fmt = (n, d = 0) => (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
   const norm = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -509,7 +503,7 @@ body.operador .admin-only{display:none!important}
   }
 
   function renderSaldo(){
-    $("#saldo-regra").textContent = "Em peças. Estoque atual = saldo da semana anterior + enviado − consumo (" + (state.modo === "teorico" ? "lanches recebidos × gramagem" : "uso informado pela Laís") + "). Diferença = estoque atual − programado pendente: verde cobre, vermelho falta.";
+    $("#saldo-regra").textContent = "Em peças. Estoque atual = saldo anterior + enviado − consumido (lanches recebidos × 20 g). Diferença = estoque atual − programado pendente: verde sobra, vermelho falta.";
     const tb = $("#tb-saldo"); const s = saldos();
     if (!s.length){ tb.replaceChildren(el("tr", {}, el("td", { class:"empty" }, "Sem estoque ainda. Faça a primeira contagem abaixo ou lance um envio."))); }
     else {
@@ -518,11 +512,12 @@ body.operador .admin-only{display:none!important}
       const sub = t => el("div", { class:"frio-tags" }, t);
       const wk = ddmm(state.week) + "–" + ddmm(addDays(state.week, 6));
       const amarelo = "color:#c98a00;font-weight:700";
-      const body = el("tbody", {}, s.map(x => el("tr", {},
+      const linhas = s.filter(x => [x.anterior, x.env, x.consumo, x.estoque, x.nec ?? x.necKg].some(v => Math.abs(v || 0) > 0.05));
+      const body = el("tbody", {}, linhas.map(x => el("tr", {},
         el("td", {}, x.frio, x.semPeso ? sub("sem peso da peça") : null),
         el("td", { class:"r num" }, n(x.anterior)),
         el("td", { class:"r num" }, n(x.env), (x.dev || x.aj) ? sub((x.dev ? "−" + fmt(x.dev,1) + " devol. " : "") + (x.aj ? (x.aj > 0 ? "+" : "") + fmt(x.aj,1) + " ajuste" : "")) : null),
-        el("td", { class:"r num" }, n(x.consumo), sub(state.modo === "teorico" ? (x.uso ? "Laís: " + fmt(x.uso,1) : "teórico") : (x.teo !== null ? "teórico: " + fmt(x.teo,1) : "Laís"))),
+        el("td", { class:"r num" }, x.semPeso ? fmt(x.teoKg, 2) + " kg" : n(x.consumo)),
         el("td", { class:"r" }, el("b", { class:"num", style:"font-size:15px" }, fmt(x.estoque, 1)), sub((x.semPeso ? "" : fmt(x.estoque * pesoDe(x.frio), 1) + " kg") + (x.contSem ? " · com contagem" : ""))),
         el("td", { class:"r num", style: amarelo }, x.nec === null ? fmt(x.necKg, 2) + " kg" : fmt(x.nec, 1)),
         el("td", { class:"r", style: x.dif === null ? "" : "font-weight:700;" + (x.dif < -0.05 ? "color:var(--bad)" : "color:var(--ok)") }, el("span", { class:"num" }, x.dif === null ? "—" : (x.dif > 0 ? "+" : "") + fmt(x.dif, 1))),
@@ -530,7 +525,7 @@ body.operador .admin-only{display:none!important}
       )));
       tb.replaceChildren(el("thead", {},
         el("tr", {}, el("th", {}), el("th", { colspan:7, style:"text-align:center;color:var(--accent)" }, "Semana " + wk)),
-        el("tr", {}, th("Frio"), th("Saldo semana anterior",1), th("Enviado",1), th("Consumo",1), th("Estoque atual",1), th("Programado pendente",1), th("Diferença",1), th("Enviar",1))), body);
+        el("tr", {}, th("Frio"), th("Saldo semana anterior",1), th("Enviado",1), th("Consumido",1), th("Estoque atual",1), th("Programado pendente",1), th("Diferença",1), th("Enviar",1))), body);
     }
     // grade de contagem
     const g = $("#tb-contagem"); if (!g) return;
@@ -572,7 +567,7 @@ body.operador .admin-only{display:none!important}
       el("tbody", {}, FRIOS_G.map(f => el("tr", {}, el("td", {}, f === "Pastas" ? "Pastas (qualquer pasta)" : f), el("td", { class:"r" }, el("input", { type:"number", min:"0", step:"1", id:"g-" + slug(f), value: gramasDe(f), style:"width:90px;text-align:right", disabled: !state.canWrite }))))));
     $("#tb-pesos").replaceChildren(el("thead", {}, el("tr", {}, el("th", {}, "Frio"), el("th", { class:"r" }, "Kg por peça"))),
       el("tbody", {}, FRIOS.map(f => el("tr", {}, el("td", {}, f), el("td", { class:"r" }, el("input", { type:"number", min:"0", step:"0.001", id:"p-" + slug(f), value: state.pesos[f] ?? PESOS_PADRAO[f] ?? "", placeholder:"—", style:"width:90px;text-align:right", disabled: !state.canWrite }))))));
-    $("#cfg-modo").value = state.modo;
+    
     const sel = $("#fr-frio"); if (!sel.options.length) sel.replaceChildren(...FRIOS.map(f => el("option", { value:f }, f)));
   }
 
@@ -720,7 +715,7 @@ body.operador .admin-only{display:none!important}
   $("#btn-gramas").onclick = async () => {
     if (!precisaDb()) return;
     const g = {}, p = {}; for (const f of FRIOS_G){ const v = Number($("#g-" + slug(f)).value); if (isFinite(v) && v >= 0) g[f] = v; } for (const f of FRIOS){ const w = $("#p-" + slug(f)).value; if (w !== "" && Number(w) > 0) p[f] = Number(w); }
-    try { await state.db.doc("config/parametros").set({ gramas: g, pesos: p, modo: $("#cfg-modo").value }); toast("Ajustes salvos"); } catch(e){ status("Não salvou (" + (e.code||"erro") + ").", "bad"); }
+    try { await state.db.doc("config/parametros").set({ gramas: g, pesos: p, modo: "teorico" }); toast("Ajustes salvos"); } catch(e){ status("Não salvou (" + (e.code||"erro") + ").", "bad"); }
   };
   // ---------- print do WhatsApp ----------
   function setPrint(blob){
@@ -849,7 +844,7 @@ body.operador .admin-only{display:none!important}
     db.collection("programacao").onSnapshot(s => { state.prog = s.docs.map(d => ({ id:d.id, ...d.data() })); render(); }, erro);
     db.collection("frios").onSnapshot(s => { state.mov = s.docs.map(d => ({ id:d.id, ...d.data() })); render(); }, erro);
     db.collection("mensagens").onSnapshot(s => { state.msgs = s.docs.map(d => ({ id:d.id, ...d.data() })); render(); }, erro);
-    db.doc("config/parametros").onSnapshot(s => { const d = (s.exists && s.data()) || {}; state.gramas = d.gramas || {}; state.pesos = d.pesos || {}; state.modo = d.modo || "mensagem"; render(); }, erro);
+    db.doc("config/parametros").onSnapshot(s => { const d = (s.exists && s.data()) || {}; state.gramas = d.gramas || {}; state.pesos = d.pesos || {}; state.modo = "teorico"; render(); }, erro);
   }
 
   (async () => {
