@@ -436,7 +436,8 @@ body.operador .admin-only{display:none!important}
       const sem = fecharSemana(f, anterior, wa, wb);
       const dif = sem.bruto;                 // pode ser negativo: é o que falta enviar
       const estoque = sem.final;             // estoque nunca fica negativo
-      return { frio:f, anterior, desp: mv.desperdicio, env: mv.envio, dev: mv.devolucao, aj: mv.ajuste, consumo: cp.pc, consumoKg: cp.kg, contSem, estoque, saldo: estoque, dif, enviar: Math.max(0, -dif), semPeso: mv.semPeso || !pesoDe(f) };
+      const ef = teoricoPc(f, wa, wb);
+      return { frio:f, anterior, efetivo: ef.pc, efetivoKg: ef.kg, desp: mv.desperdicio, env: mv.envio, dev: mv.devolucao, aj: mv.ajuste, consumo: cp.pc, consumoKg: cp.kg, contSem, estoque, saldo: estoque, dif, enviar: Math.max(0, -dif), semPeso: mv.semPeso || !pesoDe(f) };
     });
   }
 
@@ -523,7 +524,7 @@ body.operador .admin-only{display:none!important}
   }
 
   function renderSaldo(){
-    $("#saldo-regra").textContent = "Em peças. Diferença = saldo anterior + enviado − consumido programado (lanches programados × 20 g) − retalhos/desperdício. Estoque atual = diferença, nunca abaixo de zero. Vermelho = falta enviar.";
+    $("#saldo-regra").textContent = "Em peças. Consumo efetivo = lanches RECEBIDOS × 20 g. Diferença = saldo anterior + enviado − consumido programado (lanches programados × 20 g) − retalhos/desperdício. Estoque atual = diferença, nunca abaixo de zero. Vermelho = falta enviar.";
     const tb = $("#tb-saldo"); const s = saldos();
     if (!s.length){ tb.replaceChildren(el("tr", {}, el("td", { class:"empty" }, "Sem estoque ainda. Faça a primeira contagem abaixo ou lance um envio."))); }
     else {
@@ -538,13 +539,14 @@ body.operador .admin-only{display:none!important}
         el("td", { class:"r num" }, n(x.anterior)),
         el("td", { class:"r num" }, n(x.env), (x.dev || x.aj) ? sub((x.dev ? "−" + fmt(x.dev,1) + " devol. " : "") + (x.aj ? (x.aj > 0 ? "+" : "") + fmt(x.aj,1) + " ajuste" : "")) : null),
         el("td", { class:"r num", style: amarelo }, x.consumo === null ? fmt(x.consumoKg, 2) + " kg" : n(x.consumo)),
+        el("td", { class:"r num" }, x.efetivo === null ? fmt(x.efetivoKg, 2) + " kg" : n(x.efetivo), (x.consumo !== null && x.efetivo !== null && Math.abs(x.efetivo - x.consumo) > 0.05) ? el("div", { class:"frio-tags" }, (x.efetivo - x.consumo > 0 ? "+" : "") + fmt(x.efetivo - x.consumo, 1) + " vs prog.") : null),
         el("td", { class:"r num", style: x.desp > 0.05 ? "color:var(--bad);font-weight:700" : "" }, n(x.desp)),
         el("td", { class:"r" }, el("b", { class:"num", style:"font-size:15px" }, fmt(x.estoque, 1)), sub((x.semPeso ? "" : fmt(x.estoque * pesoDe(x.frio), 1) + " kg") + (x.contSem ? " · com contagem" : ""))),
         el("td", { class:"r", style: "font-weight:700;" + (x.dif < -0.05 ? "color:var(--bad)" : "color:var(--ok)") }, el("span", { class:"num" }, (x.dif > 0.05 ? "+" : "") + fmt(x.dif, 1)), x.dif < -0.05 ? sub("enviar " + fmt(Math.ceil(-x.dif), 0) + " pç") : null)
       )));
       tb.replaceChildren(el("thead", {},
-        el("tr", {}, el("th", {}), el("th", { colspan:6, style:"text-align:center;color:var(--accent)" }, "Semana " + wk)),
-        el("tr", {}, th("Frio"), th("Saldo anterior",1), th("Enviado",1), th("Consumido programado",1), th("Retalhos / desperdício",1), th("Estoque atual",1), th("Diferença",1))), body);
+        el("tr", {}, el("th", {}), el("th", { colspan:7, style:"text-align:center;color:var(--accent)" }, "Semana " + wk)),
+        el("tr", {}, th("Frio"), th("Saldo anterior",1), th("Enviado",1), th("Consumido programado",1), th("Consumo efetivo",1), th("Retalhos / desperdício",1), th("Estoque atual",1), th("Diferença",1))), body);
     }
     // retalhos: resumo da semana por dia
     const wa = iso(state.week), wb = iso(addDays(state.week, 7));
