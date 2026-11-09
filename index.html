@@ -251,6 +251,17 @@ body.operador .admin-only{display:none!important}
       </div>
       <div class="scroll"><table id="tb-saldo"></table></div>
     </div>
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <h2>Retalhos / desperdício do dia</h2>
+        <span class="muted">Lance todo dia as peças de frio que viraram retalho ou foram desperdiçadas. Elas saem do estoque.</span>
+      </div>
+      <div class="form-row"><label>Data<input type="date" id="rt-data"></label></div>
+      <div class="scroll"><table id="tb-retalho"></table></div>
+      <div class="form-row"><button id="btn-retalho" class="primary">Lançar retalhos</button><span class="muted">Frios em branco não são lançados. Aceita fração (ex.: 0,5 peça).</span></div>
+      <h3 style="margin-top:8px">Retalhos da semana por dia</h3>
+      <div class="scroll"><table id="tb-retalho-sem"></table></div>
+    </div>
     <div class="panel admin-only" style="margin-top:16px">
       <div class="panel-head">
         <h2>Contagem de estoque</h2>
@@ -386,7 +397,7 @@ body.operador .admin-only{display:none!important}
   // Estoque de um frio no INÍCIO do dia "ate" (exclusivo): última contagem antes dessa data + envios − devoluções ± ajustes − consumo
   function contagemAntes(f, ate){ return state.mov.filter(m => m.tipo === "contagem" && m.frio === f && (m.data || "") < ate).sort((a,b) => ((b.data||"") + (b.criado||"")).localeCompare((a.data||"") + (a.criado||"")))[0] || null; }
   function movimentoPc(f, de, ate){
-    const t = { envio:0, devolucao:0, ajuste:0, uso:0, semPeso:false };
+    const t = { envio:0, devolucao:0, ajuste:0, uso:0, desperdicio:0, semPeso:false };
     for (const m of state.mov){
       if (m.frio !== f || m.tipo === "contagem") continue;
       const d = m.data || ""; if (d < de || d >= ate) continue;
@@ -403,7 +414,7 @@ body.operador .admin-only{display:none!important}
     const cont = state.mov.filter(m => m.tipo === "contagem" && m.frio === f && m.data >= wa && m.data < wb).sort((a,b) => ((b.data||"") + (b.criado||"")).localeCompare((a.data||"") + (a.criado||"")))[0];
     const de = cont ? cont.data : wa, base = cont ? (emPecas(cont) ?? 0) : ini;
     const mv = movimentoPc(f, de, wb), cp = progPc(f, de, wb);
-    const bruto = base + mv.envio - mv.devolucao + mv.ajuste - (cp.pc ?? 0);
+    const bruto = base + mv.envio - mv.devolucao + mv.ajuste - mv.desperdicio - (cp.pc ?? 0);
     return { bruto, final: Math.max(0, bruto) };
   }
   // saldo no início da semana "wa": encadeia semana a semana desde o primeiro lançamento, nunca abaixo de zero
@@ -425,7 +436,7 @@ body.operador .admin-only{display:none!important}
       const sem = fecharSemana(f, anterior, wa, wb);
       const dif = sem.bruto;                 // pode ser negativo: é o que falta enviar
       const estoque = sem.final;             // estoque nunca fica negativo
-      return { frio:f, anterior, env: mv.envio, dev: mv.devolucao, aj: mv.ajuste, consumo: cp.pc, consumoKg: cp.kg, contSem, estoque, saldo: estoque, dif, enviar: Math.max(0, -dif), semPeso: mv.semPeso || !pesoDe(f) };
+      return { frio:f, anterior, desp: mv.desperdicio, env: mv.envio, dev: mv.devolucao, aj: mv.ajuste, consumo: cp.pc, consumoKg: cp.kg, contSem, estoque, saldo: estoque, dif, enviar: Math.max(0, -dif), semPeso: mv.semPeso || !pesoDe(f) };
     });
   }
 
@@ -512,7 +523,7 @@ body.operador .admin-only{display:none!important}
   }
 
   function renderSaldo(){
-    $("#saldo-regra").textContent = "Em peças. Diferença = saldo anterior + enviado − consumido programado (lanches programados × 20 g). Estoque atual = diferença, nunca abaixo de zero. Vermelho = falta enviar.";
+    $("#saldo-regra").textContent = "Em peças. Diferença = saldo anterior + enviado − consumido programado (lanches programados × 20 g) − retalhos/desperdício. Estoque atual = diferença, nunca abaixo de zero. Vermelho = falta enviar.";
     const tb = $("#tb-saldo"); const s = saldos();
     if (!s.length){ tb.replaceChildren(el("tr", {}, el("td", { class:"empty" }, "Sem estoque ainda. Faça a primeira contagem abaixo ou lance um envio."))); }
     else {
@@ -521,18 +532,37 @@ body.operador .admin-only{display:none!important}
       const sub = t => el("div", { class:"frio-tags" }, t);
       const wk = ddmm(state.week) + "–" + ddmm(addDays(state.week, 6));
       const amarelo = "color:#c98a00;font-weight:700";
-      const linhas = s.filter(x => [x.anterior, x.env, x.consumo ?? x.consumoKg, x.estoque, x.dif].some(v => Math.abs(v || 0) > 0.05));
+      const linhas = s.filter(x => [x.anterior, x.env, x.desp, x.consumo ?? x.consumoKg, x.estoque, x.dif].some(v => Math.abs(v || 0) > 0.05));
       const body = el("tbody", {}, linhas.map(x => el("tr", {},
         el("td", {}, x.frio, x.semPeso ? sub("sem peso da peça") : null),
         el("td", { class:"r num" }, n(x.anterior)),
         el("td", { class:"r num" }, n(x.env), (x.dev || x.aj) ? sub((x.dev ? "−" + fmt(x.dev,1) + " devol. " : "") + (x.aj ? (x.aj > 0 ? "+" : "") + fmt(x.aj,1) + " ajuste" : "")) : null),
         el("td", { class:"r num", style: amarelo }, x.consumo === null ? fmt(x.consumoKg, 2) + " kg" : n(x.consumo)),
+        el("td", { class:"r num", style: x.desp > 0.05 ? "color:var(--bad);font-weight:700" : "" }, n(x.desp)),
         el("td", { class:"r" }, el("b", { class:"num", style:"font-size:15px" }, fmt(x.estoque, 1)), sub((x.semPeso ? "" : fmt(x.estoque * pesoDe(x.frio), 1) + " kg") + (x.contSem ? " · com contagem" : ""))),
         el("td", { class:"r", style: "font-weight:700;" + (x.dif < -0.05 ? "color:var(--bad)" : "color:var(--ok)") }, el("span", { class:"num" }, (x.dif > 0.05 ? "+" : "") + fmt(x.dif, 1)), x.dif < -0.05 ? sub("enviar " + fmt(Math.ceil(-x.dif), 0) + " pç") : null)
       )));
       tb.replaceChildren(el("thead", {},
-        el("tr", {}, el("th", {}), el("th", { colspan:5, style:"text-align:center;color:var(--accent)" }, "Semana " + wk)),
-        el("tr", {}, th("Frio"), th("Saldo anterior",1), th("Enviado",1), th("Consumido programado",1), th("Estoque atual",1), th("Diferença",1))), body);
+        el("tr", {}, el("th", {}), el("th", { colspan:6, style:"text-align:center;color:var(--accent)" }, "Semana " + wk)),
+        el("tr", {}, th("Frio"), th("Saldo anterior",1), th("Enviado",1), th("Consumido programado",1), th("Retalhos / desperdício",1), th("Estoque atual",1), th("Diferença",1))), body);
+    }
+    // retalhos: resumo da semana por dia
+    const wa = iso(state.week), wb = iso(addDays(state.week, 7));
+    const rs = state.mov.filter(m => m.tipo === "desperdicio" && m.data >= wa && m.data < wb);
+    const tbr = $("#tb-retalho-sem");
+    if (!rs.length) tbr.replaceChildren(el("tr", {}, el("td", { class:"empty" }, "Nenhum retalho lançado nesta semana.")));
+    else {
+      const friosR = FRIOS.filter(f => rs.some(m => m.frio === f));
+      const dias = [0,1,2,3,4,5,6].map(i => iso(addDays(state.week, i)));
+      const val = (f, d) => rs.filter(m => m.frio === f && m.data === d).reduce((a, m) => a + (emPecas(m) || 0), 0);
+      tbr.replaceChildren(el("thead", {}, el("tr", {}, el("th", {}, "Frio"), ...dias.map((d, i) => el("th", { class:"r" }, DIAS[i].slice(0,3) + " " + ddmm(parseIso(d)))), el("th", { class:"r" }, "Total"))),
+        el("tbody", {}, friosR.map(f => { const vs = dias.map(d => val(f, d)); const tot = vs.reduce((a,b) => a+b, 0);
+          return el("tr", {}, el("td", {}, f), ...vs.map(v => el("td", { class:"r num" }, v ? fmt(v, 1) : "—")), el("td", { class:"r num", style:"color:var(--bad);font-weight:700" }, fmt(tot, 1), pesoDe(f) ? el("div", { class:"frio-tags" }, fmt(tot * pesoDe(f), 1) + " kg") : null)); })));
+    }
+    const gr = $("#tb-retalho");
+    if (gr && !gr.dataset.ok){ gr.dataset.ok = "1";
+      gr.replaceChildren(el("thead", {}, el("tr", {}, el("th", {}, "Frio"), el("th", { class:"r" }, "Peças"))),
+        el("tbody", {}, FRIOS.map(f => el("tr", {}, el("td", {}, f), el("td", { class:"r" }, el("input", { type:"number", min:"0", step:"0.1", id:"rt-" + slug(f), placeholder:"—", style:"width:100px;text-align:right" }))))));
     }
     // grade de contagem
     const g = $("#tb-contagem"); if (!g) return;
@@ -544,7 +574,7 @@ body.operador .admin-only{display:none!important}
   function renderMov(){
     const tb = $("#tb-mov"); const list = [...state.mov].sort((a,b) => (b.data||"").localeCompare(a.data||"")).slice(0, 80);
     if (!list.length){ tb.replaceChildren(el("tr", {}, el("td", { class:"empty" }, "Nenhum movimento lançado."))); return; }
-    const nomeTipo = { envio:"Envio", devolucao:"Devolução", ajuste:"Ajuste", uso:"Uso informado", contagem:"Contagem" };
+    const nomeTipo = { envio:"Envio", devolucao:"Devolução", ajuste:"Ajuste", uso:"Uso informado", contagem:"Contagem", desperdicio:"Retalho / desperdício" };
     tb.replaceChildren(el("thead", {}, el("tr", {}, el("th", {}, "Data"), el("th", {}, "Frio"), el("th", {}, "Tipo"), el("th", { class:"r" }, "Qtd"), el("th", {}, "Obs."), el("th", {}))),
       el("tbody", {}, list.map(m => { const b = el("button", { class:"ghost danger admin-only", disabled: !state.isAdmin }, "Excluir");
         b.addEventListener("click", () => { if (b.dataset.armed){ excluirMov(m); } else { b.dataset.armed = "1"; b.textContent = "Confirmar"; setTimeout(() => { delete b.dataset.armed; b.textContent = "Excluir"; }, 3000); } });
@@ -706,6 +736,19 @@ body.operador .admin-only{display:none!important}
     };
     box.replaceChildren(el("div", { class:"notice ok" }, "Uso de " + itens.map(i => fmt(i.qtd, i.unidade === "kg" ? 3 : 0) + (i.unidade === "kg" ? " kg de " : " pç de ") + i.frio).join(", ") + " em " + ddmm(parseIso(data)) + ". "), btn);
   };
+  $("#btn-retalho").onclick = async () => {
+    if (!precisaDb()) return;
+    const data = $("#rt-data").value; if (!data){ status("Escolha a data.", "bad"); return; }
+    const itens = FRIOS.map(f => [f, $("#rt-" + slug(f)).value.replace(",", ".")]).filter(([, v]) => v !== "" && isFinite(Number(v)) && Number(v) > 0);
+    if (!itens.length){ status("Preencha as peças de pelo menos um frio.", "bad"); return; }
+    const b = $("#btn-retalho"); b.disabled = true;
+    try {
+      for (const [f, v] of itens) await state.db.collection("frios").add({ data, frio: f, qtd: Number(v), unidade: "peca", tipo: "desperdicio", obs: "Retalho / desperdício", origem: "retalho" });
+      for (const [f] of itens) $("#rt-" + slug(f)).value = "";
+      status(""); toast("Retalhos lançados: " + itens.length + " frio(s)");
+    } catch(e){ status("Não salvou os retalhos (" + (e.code||"erro") + "). Se você é operador, peça ao admin para liberar o lançamento de retalhos.", "bad"); }
+    b.disabled = false;
+  };
   $("#btn-contagem").onclick = async () => {
     if (!precisaDb()) return;
     const data = $("#ct-data").value; if (!data){ status("Escolha a data da contagem.", "bad"); return; }
@@ -808,7 +851,7 @@ body.operador .admin-only{display:none!important}
 
   function route(){ const h = location.hash.replace("#", ""); state.view = ["semana","programacao","frios","ajustes"].includes(h) ? h : "semana"; render(); }
   window.addEventListener("hashchange", route);
-  $("#fr-data").value = iso(new Date()); $("#add-data").value = iso(new Date()); $("#msg-data").value = iso(new Date()); $("#print-data").value = iso(new Date()); $("#paste-data").value = iso(new Date()); $("#ct-data").value = iso(new Date());
+  $("#fr-data").value = iso(new Date()); $("#add-data").value = iso(new Date()); $("#msg-data").value = iso(new Date()); $("#print-data").value = iso(new Date()); $("#paste-data").value = iso(new Date()); $("#ct-data").value = iso(new Date()); $("#rt-data").value = iso(new Date());
   route();
 
   // ---------- dados (Supabase) ----------
